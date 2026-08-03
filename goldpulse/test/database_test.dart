@@ -1,6 +1,5 @@
 // test/database_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:goldpulse/database/app_database.dart';
 import 'package:goldpulse/database/price_dao.dart';
 import 'package:goldpulse/database/holding_dao.dart';
@@ -10,12 +9,10 @@ import 'package:goldpulse/models/gold_price.dart';
 import 'package:goldpulse/models/holding.dart';
 import 'package:goldpulse/models/trade_record.dart';
 import 'package:goldpulse/models/alert.dart';
+import 'test_db.dart';
 
 void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    AppDatabase.databaseFactory = databaseFactoryFfi;
-  });
+  setUpAll(setUpTestDatabase); // 独立 FFI 数据库目录，避免并行 isolate 锁竞争
   setUp(() async {
     await AppDatabase.reset(); // 每个用例重建内存库
   });

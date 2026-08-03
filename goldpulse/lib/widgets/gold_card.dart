@@ -33,7 +33,7 @@ class GoldCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Row(children: [
-            Text('${arrow(change)} ${fmtAmount(change.abs())}  (+${percent.toStringAsFixed(2)}%)',
+            Text('${arrow(change)} ${fmtAmount(change.abs())}  (${percent >= 0 ? '+' : ''}${percent.toStringAsFixed(2)}%)',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: color, fontFeatures: const [FontFeature.tabularFigures()])),
           ]),

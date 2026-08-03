@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:goldpulse/database/holding_dao.dart';
-import 'package:goldpulse/database/trade_dao.dart';
 import 'package:goldpulse/models/gold_price.dart';
 import 'package:goldpulse/models/holding.dart';
 import 'package:goldpulse/models/trade_record.dart';
@@ -20,6 +19,7 @@ import 'package:goldpulse/widgets/holding_list_tile.dart';
 class _FakeHoldingDao extends HoldingDao {
   Holding holding;
   final updatedAmounts = <double>[];
+  final trades = <TradeRecord>[];
   _FakeHoldingDao(this.holding);
 
   @override
@@ -43,15 +43,19 @@ class _FakeHoldingDao extends HoldingDao {
     holding = Holding(id: holding.id, name: holding.name, kind: holding.kind,
         amount: holding.amount, totalCost: newTotalCost, createdAt: holding.createdAt);
   }
-}
 
-/// 假交易 DAO：记录 insert，不触碰真实数据库。
-class _FakeTradeDao extends TradeDao {
-  final trades = <TradeRecord>[];
+  /// 记录交易：模拟 HoldingDao.recordTrade 的原子语义（改克重/成本 + 记一笔）。
   @override
-  Future<int> insert(TradeRecord t) async {
-    trades.add(t);
-    return t.id;
+  Future<void> recordTrade({
+    required int holdingId,
+    required double amount,
+    required double totalCost,
+    required TradeRecord record,
+  }) async {
+    holding = Holding(id: holding.id, name: holding.name, kind: holding.kind,
+        amount: amount, totalCost: totalCost, createdAt: holding.createdAt);
+    updatedAmounts.add(amount);
+    trades.add(record);
   }
 }
 
@@ -92,14 +96,12 @@ void main() {
   testWidgets('记一笔卖出：超卖被内联拦截且不产生交易', (tester) async {
     final dao = _FakeHoldingDao(Holding(
         id: 1, name: '浙商积存金', kind: 'accumulation', amount: 50, totalCost: 310000, createdAt: 1));
-    final tradeDao = _FakeTradeDao();
     final stream = Stream<GoldPrice?>.value(
         GoldPrice(code: 'Au9999', price: 780.2, change: 0, percent: 0, preClose: 780.2, time: 1));
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
         holdingDaoProvider.overrideWithValue(dao),
-        tradeDaoProvider.overrideWithValue(tradeDao),
         priceProvider.overrideWith((ref) => stream),
       ],
       child: MaterialApp(home: Scaffold(body: HoldingListTile(holding: dao.holding))),
@@ -118,7 +120,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(dao.updatedAmounts, isEmpty);
-    expect(tradeDao.trades, isEmpty);
+    expect(dao.trades, isEmpty);
 
     // 修正为合法克重 + 价格后，卖出成功。
     await tester.enterText(find.byType(TextField).at(0), '40');
@@ -128,6 +130,6 @@ void main() {
     await tester.tap(find.text('确定'));
     await _settle(tester);
     expect(dao.updatedAmounts.single, 10);
-    expect(tradeDao.trades.single.type, 'sell');
+    expect(dao.trades.single.type, 'sell');
   });
 }

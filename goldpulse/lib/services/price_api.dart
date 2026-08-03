@@ -21,12 +21,21 @@ class PriceApi {
       'https://api.jdjygold.com/gw2/generic/produTools/h5/m/getGoldPrice';
 
   /// 拉取某行情代码的最新价。失败时抛 [ApiException]，由调用方降级。
+  /// 畸形响应（非 JSON / 结构非法）也转为 [ApiException]，使降级链能切换备用源，
+  /// 而不是让 FormatException/TypeError 直接冒泡打断轮询流。
   Future<GoldPrice?> fetchGoldPrice(String code) async {
     try {
       final res = await dio.get(jdGoldUrl, queryParameters: {'goldCode': code},
           options: Options(receiveTimeout: const Duration(seconds: 8), sendTimeout: const Duration(seconds: 8)));
       var data = res.data;
-      if (data is String) data = jsonDecode(data); // dio 某些情况返回字符串
+      if (data is String) {
+        try {
+          data = jsonDecode(data); // dio 某些情况返回字符串
+        } on FormatException {
+          throw ApiException('响应非合法 JSON');
+        }
+      }
+      if (data is! Map<String, dynamic>) throw ApiException('响应结构非法');
       return parseJdGoldPrice(data, fallbackCode: code);
     } on DioException catch (e) {
       throw ApiException('网络请求失败: ${e.message}');
@@ -73,9 +82,10 @@ class PriceApi {
     if (quote is! Map) return null;
     final price = (quote['price'] ?? quote['current'] ?? quote['last']);
     final preClose = (quote['preClose'] ?? quote['preClosePrice'] ?? quote['yclose']);
-    if (price == null || preClose == null) return null;
-    final p = (price as num).toDouble();
-    final pre = (preClose as num).toDouble();
+    final p = _toDouble(price);
+    final pre = _toDouble(preClose);
+    // 数值非法（null / 非数字字符串）→ 视为主源失效，返回 null 走降级。
+    if (p == null || pre == null) return null;
     return GoldPrice(
       code: (quote['code'] as String?) ?? fallbackCode,
       price: p,
@@ -84,5 +94,14 @@ class PriceApi {
       preClose: pre,
       time: DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  /// 容错数值转换：接受 num 或纯数字字符串（如免费接口返回 "780.20"）；
+  /// 其余情况（null / 非数字）返回 null，由调用方按"主源失效"处理。
+  static double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.trim());
+    return null;
   }
 }

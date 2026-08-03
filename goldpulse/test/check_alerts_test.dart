@@ -8,7 +8,7 @@ import 'package:goldpulse/database/alert_dao.dart';
 import 'package:goldpulse/database/app_database.dart';
 import 'package:goldpulse/models/alert.dart';
 import 'package:goldpulse/state/alert_provider.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'test_db.dart';
 
 /// 假通知插件：implements + noSuchMethod 拦截 show，避免 MissingPluginException。
 class _FakeNotifications implements FlutterLocalNotificationsPlugin {
@@ -26,10 +26,7 @@ class _FakeNotifications implements FlutterLocalNotificationsPlugin {
 }
 
 void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    AppDatabase.databaseFactory = databaseFactoryFfi;
-  });
+  setUpAll(setUpTestDatabase); // 独立 FFI 数据库目录，避免并行 isolate 锁竞争
   setUp(() async {
     await AppDatabase.reset(); // 每个用例重建库
   });

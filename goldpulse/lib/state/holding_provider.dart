@@ -20,15 +20,18 @@ final addHoldingProvider = FutureProvider.family<void, Holding>((ref, holding) a
   ref.invalidate(holdingsProvider);
 });
 
-/// 记录一笔交易并按规则更新持仓克重/成本。
+/// 记录一笔交易并按规则更新持仓克重/成本（原子事务写入，见 HoldingDao.recordTrade）。
 final recordTradeProvider = FutureProvider.family<void, TradeRecord>((ref, record) async {
   final dao = ref.read(holdingDaoProvider);
   final h = await dao.get(record.holdingId);
   if (h == null) throw StateError('持仓不存在');
   final next = Calculator.applyTrade(amount: h.amount, totalCost: h.totalCost, record: record);
-  await dao.updateAmount(record.holdingId, next.amount);
-  await dao.updateCost(record.holdingId, next.totalCost);
-  await ref.read(tradeDaoProvider).insert(record);
+  await dao.recordTrade(
+    holdingId: record.holdingId,
+    amount: next.amount,
+    totalCost: next.totalCost,
+    record: record,
+  );
   ref.invalidate(holdingsProvider);
 });
 

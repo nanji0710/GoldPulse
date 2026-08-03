@@ -42,12 +42,12 @@ class SettingPage extends ConsumerWidget {
         const _SectionTitle('数据管理'),
         ListTile(
           title: const Text('导出备份（JSON）'),
-          subtitle: const Text('保存持仓、交易、提醒到本地 JSON 文件'),
+          subtitle: const Text('保存持仓、交易、提醒到本地 JSON 文件（不含价格历史）'),
           onTap: () => _exportBackup(context, ref),
         ),
         ListTile(
           title: const Text('导入备份'),
-          subtitle: const Text('从本地 JSON 文件恢复数据'),
+          subtitle: const Text('从本地 JSON 文件恢复数据（将清空本机价格历史）'),
           onTap: () => _importBackup(context, ref),
         ),
         ListTile(
@@ -139,6 +139,20 @@ Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
     );
     if (picked == null || !context.mounted) return;
     final raw = await File(picked).readAsString();
+    if (!context.mounted) return;
+    // 备份文件不含行情价格历史：导入前明确告知本机价格历史会被清空。
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('导入备份'),
+        content: const Text('备份文件不含行情价格历史。\n导入将覆盖当前持仓、交易、提醒，并清空本机价格历史。是否继续？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('导入')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
     await BackupService().importJson(raw); // 校验 version；失败抛 FormatException 不落数据
     ref.invalidate(holdingsProvider);
     ref.invalidate(alertsProvider);
