@@ -711,10 +711,11 @@ class AlertDao {
   Future<void> toggle(int id, bool enable) async {
     await (await AppDatabase.database).update('alert', {'enable': enable ? 1 : 0}, where: 'id = ?', whereArgs: [id]);
   }
-  Future<void> recordTrigger(int id) async {
-    await (await AppDatabase.database).update('alert',
-        {'trigger_count': -1, 'last_triggered': DateTime.now().millisecondsSinceEpoch},
-        where: 'id = ?', whereArgs: [id]);
+  Future<void> recordTrigger(int id, {DateTime? time}) async {
+    final now = time ?? DateTime.now();
+    await (await AppDatabase.database).rawUpdate(
+        'UPDATE alert SET trigger_count = trigger_count + 1, last_triggered = ? WHERE id = ?',
+        [now.millisecondsSinceEpoch, id]);
   }
   Future<void> delete(int id) async {
     await (await AppDatabase.database).delete('alert', where: 'id = ?', whereArgs: [id]);
@@ -722,7 +723,7 @@ class AlertDao {
 }
 ```
 
-> 说明：`AlertDao.recordTrigger` 用 `trigger_count = -1` 触发 SQLite 自增写法，等价于 `trigger_count = trigger_count + 1`。
+> 说明：`recordTrigger` 用 `rawUpdate` 实现 `trigger_count = trigger_count + 1`（直接赋值 `-1` 是错误的——SQLite 不会把它解释为自增）。可选参数 `time` 用于测试注入确定性时间。
 
 - [ ] **Step 5: 运行测试确认通过**
 
