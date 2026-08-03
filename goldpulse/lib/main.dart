@@ -24,10 +24,10 @@ Future<void> main() async {
       ?.requestNotificationsPermission();
 
   // WorkManager 后台轮询：注册每 15 分钟一次的 'checkAlerts' 任务。
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  await Workmanager().initialize(callbackDispatcher);
   await Workmanager().registerPeriodicTask('price-alert', 'checkAlerts',
       frequency: const Duration(minutes: 15),
-      existingWorkPolicy: ExistingWorkPolicy.keep);
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep);
 
   final dio = Dio(BaseOptions(headers: {'User-Agent': 'goldpulse/1.0'}));
   runApp(ProviderScope(
