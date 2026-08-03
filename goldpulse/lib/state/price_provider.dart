@@ -26,7 +26,8 @@ final refreshIntervalProvider = FutureProvider<Duration>((ref) async {
 });
 
 /// 行情轮询：交易时段每隔 [refreshIntervalProvider] 拉取并入库；休市保持缓存（省电）。
-/// 失败降级为缓存。间隔偏好变化时（设置页修改后 invalidate）本流自动重启。
+/// 失败自动降级：主源（京东） → 备用源（新浪） → 缓存。
+/// 间隔偏好变化时（设置页修改后 invalidate）本流自动重启。
 final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final api = ref.watch(priceApiProvider);
   final dao = ref.watch(priceDaoProvider);
@@ -35,14 +36,12 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   yield last;
   while (true) {
     if (MarketHours.isTrading(DateTime.now())) {
-      try {
-        final fresh = await api.fetchGoldPrice('SGE-Au(T+D)');
-        if (fresh != null) {
-          await dao.insert(fresh);
-          last = fresh;
-        }
-      } on ApiException {
-        // 主源失败：保留缓存
+      // fetchGoldPriceWithFallback 内部吞掉 ApiException/DioException 并返回 null，
+      // 不再需要外层 try/catch；返回 null 时保留缓存继续轮询。
+      final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
+      if (fresh != null) {
+        await dao.insert(fresh);
+        last = fresh;
       }
     }
     yield last;

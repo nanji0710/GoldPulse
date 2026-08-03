@@ -50,4 +50,15 @@ void main() {
       throwsA(isA<ApiException>()),
     );
   });
+
+  test('新浪接口解析（字段为 s2/h 格式字符串）', () {
+    // 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
+    // （字段序号随品种可能变化，本映射需上线时对真实行情实测校准）
+    final gp = PriceApi.parseSinaGoldPrice(
+        'var hq_str=gold="1,沪金T+D,780.20,779.00,776.70"',
+        code: 'SGE-Au(T+D)');
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(776.70, 0.001));   // 最新价 = 索引 4
+    expect(gp.preClose, closeTo(779.00, 0.001)); // 昨收 = 索引 3
+  });
 }

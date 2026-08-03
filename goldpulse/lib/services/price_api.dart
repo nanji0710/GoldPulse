@@ -1,6 +1,5 @@
 // lib/services/price_api.dart
-// 行情接口适配层：主源（京东黄金） + 降级信号。
-// 备用源（新浪行情 hq.sinajs.cn）将在 Task 15 接入，解析逻辑收敛在本文件。
+// 行情接口适配层：主源（京东黄金） + 备用源（新浪行情 hq.sinajs.cn）降级链。
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -32,6 +31,38 @@ class PriceApi {
     } on DioException catch (e) {
       throw ApiException('网络请求失败: ${e.message}');
     }
+  }
+
+  /// 新浪行情解析（备用源）。
+  /// 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
+  /// 索引：0=市场 1=名称 2=开盘 3=昨收 4=最新（字段序号随品种可能变化，上线时需实测校准）
+  static GoldPrice? parseSinaGoldPrice(String raw, {String code = 'SGE-Au(T+D)'}) {
+    final m = RegExp(r'"([^"]*)"').firstMatch(raw);
+    if (m == null) return null;
+    final parts = m.group(1)!.split(',');
+    if (parts.length < 5) return null;
+    final price = double.tryParse(parts[4]);     // 最新价
+    final preClose = double.tryParse(parts[3]);  // 昨收
+    if (price == null || preClose == null) return null;
+    return GoldPrice(
+        code: code, price: price, change: price - preClose,
+        percent: preClose == 0 ? 0 : (price - preClose) / preClose * 100,
+        preClose: preClose, time: DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// 降级链：主源 → 备用源 → null（调用方回落本地缓存）。
+  Future<GoldPrice?> fetchGoldPriceWithFallback(String code) async {
+    try { return await fetchGoldPrice(code); } on ApiException { /* fall */ }
+    try {
+      final res = await dio.get('https://hq.sinajs.cn/list=shau9999',
+          options: Options(
+            // dio 5.x 的 Options 无 connectTimeout，沿用主源的 receiveTimeout。
+            receiveTimeout: const Duration(seconds: 8),
+            // 新浪接口校验 Referer，缺失时可能返回空响应。
+            headers: {'Referer': 'https://finance.sina.com.cn/'},
+          ));
+      return parseSinaGoldPrice(res.data.toString(), code: code);
+    } on DioException { return null; }
   }
 
   /// 容错解析：遍历可能的字段路径。字段变动时只需改本方法。
