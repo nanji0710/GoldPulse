@@ -49,4 +49,16 @@ void main() {
     await dao.toggle(id, false);
     expect((await dao.get(id))!.enable, false);
   });
+  test('alert recordTrigger 自增且不影响其他行', () async {
+    final dao = AlertDao();
+    final triggered = await dao.insert(Alert(type: 'price_down', target: 700, enable: true));
+    final untouched = await dao.insert(Alert(type: 'profit_target', target: 900, enable: true));
+    final t = DateTime.fromMillisecondsSinceEpoch(5000);
+    await dao.recordTrigger(triggered, time: t);
+    await dao.recordTrigger(triggered, time: t);
+    expect((await dao.get(triggered))!.triggerCount, 2);
+    expect((await dao.get(triggered))!.lastTriggered, 5000);
+    expect((await dao.get(untouched))!.triggerCount, 0);
+    expect((await dao.get(untouched))!.lastTriggered, 0);
+  });
 }
