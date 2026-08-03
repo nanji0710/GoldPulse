@@ -1,0 +1,66 @@
+# ---- 本地工具 / 环境（非项目文件）----
+# Claude Code 技能与本地配置
+.claude/
+
+# ---- Flutter / Dart ----
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-plugins-dependencies.macos
+.metadata
+pubspec.lock
+*.iml
+*.ipr
+*.iws
+
+# ---- Android ----
+android/.gradle/
+android/local.properties
+android/.idea/
+android/.classpath
+android/.settings/
+android/build/
+android/*.keystore
+android/!debug.keystore
+android/captures/
+
+# ---- iOS / macOS ----
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+macos/Pods/
+macos/Flutter/ephemeral/
+*.xcworkspace
+*.xcuserdatad/
+*.xcscheme
+
+# ---- Windows / Linux ----
+windows/flutter/ephemeral/
+windows/flutter/generated_plugins.cmake
+linux/flutter/ephemeral/
+linux/flutter/generated_plugins.cmake
+
+# ---- IDE ----
+.idea/
+.vscode/
+.vscode/launch.json
+.vscode/tasks.json
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ---- 密钥与敏感信息 ----
+*.key
+*.jks
+*.p12
+*.pem
+.env
+.env.local
