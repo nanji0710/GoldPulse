@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:goldpulse/models/gold_price.dart';
 import 'package:goldpulse/pages/asset_page.dart';
 import 'package:goldpulse/pages/home_page.dart';
+import 'package:goldpulse/pages/market_page.dart';
 import 'package:goldpulse/pages/onboarding_page.dart';
 import 'package:goldpulse/state/price_provider.dart';
 
@@ -34,5 +35,13 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: AssetPage())));
     await tester.pumpAndSettle();
     expect(find.textContaining('添加你的第一笔黄金持仓'), findsOneWidget);
+  });
+
+  testWidgets('行情页渲染周期标签', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: MarketPage())));
+    await tester.pumpAndSettle();
+    expect(find.text('1日'), findsOneWidget);
+    expect(find.text('7日'), findsOneWidget);
+    expect(find.text('30日'), findsOneWidget);
   });
 }
