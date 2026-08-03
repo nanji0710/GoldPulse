@@ -73,7 +73,8 @@ class HoldingListTile extends ConsumerWidget {
   /// 修改克重：直接覆盖持仓克重（用于修正录入误差）。
   Future<void> _editAmount(BuildContext context, WidgetRef ref) async {
     final value = await _promptNumber(context, '修改克重',
-        hint: '当前 ${fmtGrams(holding.amount)}g', initial: fmtGrams(holding.amount));
+        hint: '当前 ${fmtGrams(holding.amount)}g',
+        initial: holding.amount.toString()); // 纯数字预填，避免千分位分隔符
     if (value == null || !context.mounted) return;
     await ref.read(holdingDaoProvider).updateAmount(holding.id, value);
     ref.invalidate(holdingsProvider);
@@ -83,30 +84,42 @@ class HoldingListTile extends ConsumerWidget {
   Future<void> _addInterest(BuildContext context, WidgetRef ref) async {
     final value = await _promptNumber(context, '加记生息', hint: '克重（如 0.08）');
     if (value == null || !context.mounted) return;
-    await ref.read(recordTradeProvider(TradeRecord(
-      holdingId: holding.id,
-      type: 'interest',
-      amount: value,
-      price: 0,
-      fee: 0,
-      time: DateTime.now().millisecondsSinceEpoch,
-    )).future);
+    try {
+      await ref.read(recordTradeProvider(TradeRecord(
+        holdingId: holding.id,
+        type: 'interest',
+        amount: value,
+        price: 0,
+        fee: 0,
+        time: DateTime.now().millisecondsSinceEpoch,
+      )).future);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack(context, '生息录入失败：$e');
+    }
   }
 
   /// 记一笔卖出：type=sell，默认价取当前行情；手续费按 0.4% 计算。
+  /// 超卖（克重 > 当前持仓）在对话框内联拦截，不产生交易记录。
   Future<void> _sell(BuildContext context, WidgetRef ref) async {
     final current = ref.read(priceProvider).value?.price;
     final result = await _promptSell(context,
-        defaultPrice: current != null ? fmtPrice(current) : null);
+        defaultPrice: current?.toString(),
+        maxAmount: holding.amount);
     if (result == null || !context.mounted) return;
-    await ref.read(recordTradeProvider(TradeRecord(
-      holdingId: holding.id,
-      type: 'sell',
-      amount: result.amount,
-      price: result.price,
-      fee: Calculator.sellFee(result.amount, result.price),
-      time: DateTime.now().millisecondsSinceEpoch,
-    )).future);
+    try {
+      await ref.read(recordTradeProvider(TradeRecord(
+        holdingId: holding.id,
+        type: 'sell',
+        amount: result.amount,
+        price: result.price,
+        fee: Calculator.sellFee(result.amount, result.price),
+        time: DateTime.now().millisecondsSinceEpoch,
+      )).future);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack(context, '卖出失败：$e');
+    }
   }
 
   /// 删除持仓：连同其交易记录一并删除。
@@ -126,7 +139,14 @@ class HoldingListTile extends ConsumerWidget {
     await ref.read(holdingDaoProvider).delete(holding.id);
     ref.invalidate(holdingsProvider);
   }
+
+  void _showSnack(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
 }
+
+/// 解析数字输入：容忍千分位分隔符与首尾空白（如 "1,000.50"）。
+double? _parseNum(String s) => double.tryParse(s.replaceAll(',', '').trim());
 
 /// 单数字输入对话框；返回 null 表示取消。
 Future<double?> _promptNumber(BuildContext context, String title,
@@ -146,7 +166,7 @@ Future<double?> _promptNumber(BuildContext context, String title,
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
         FilledButton(
           onPressed: () {
-            final v = double.tryParse(controller.text);
+            final v = _parseNum(controller.text);
             if (v != null && v > 0) Navigator.pop(ctx, v);
           },
           child: const Text('确定'),
@@ -157,41 +177,66 @@ Future<double?> _promptNumber(BuildContext context, String title,
 }
 
 /// 卖出对话框：克重 + 价格（默认当前行情价）。
+/// [maxAmount] 当前持仓克重；超卖时内联报错且不关闭对话框。
 Future<({double amount, double price})?> _promptSell(BuildContext context,
-    {String? defaultPrice}) {
+    {String? defaultPrice, required double maxAmount}) {
   final amountC = TextEditingController();
   final priceC = TextEditingController(text: defaultPrice);
   return showDialog<({double amount, double price})>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('记一笔卖出'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(
-          controller: amountC,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: '卖出克重', hintText: '例如 50'),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: priceC,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: '卖出价格（元/g）'),
-        ),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-        FilledButton(
-          onPressed: () {
-            final amount = double.tryParse(amountC.text);
-            final price = double.tryParse(priceC.text);
-            if (amount != null && amount > 0 && price != null && price > 0) {
-              Navigator.pop(ctx, (amount, price));
-            }
-          },
-          child: const Text('确定'),
-        ),
-      ],
-    ),
+    builder: (ctx) {
+      String? errorText;
+      return StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          void revalidate() {
+            final amount = _parseNum(amountC.text);
+            setDialogState(() {
+              errorText =
+                  amount != null && amount > maxAmount ? '超过当前持仓 ${fmtGrams(maxAmount)}g' : null;
+            });
+          }
+
+          return AlertDialog(
+            title: const Text('记一笔卖出'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                controller: amountC,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: '卖出克重',
+                  hintText: '例如 50',
+                  errorText: errorText,
+                ),
+                onChanged: (_) => revalidate(),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: priceC,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: '卖出价格（元/g）'),
+              ),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+              FilledButton(
+                onPressed: () {
+                  final amount = _parseNum(amountC.text);
+                  final price = _parseNum(priceC.text);
+                  if (amount != null &&
+                      amount > 0 &&
+                      amount <= maxAmount &&
+                      price != null &&
+                      price > 0) {
+                    Navigator.pop(ctx, (amount: amount, price: price));
+                  }
+                },
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    },
   );
 }
