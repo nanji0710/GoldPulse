@@ -10,7 +10,9 @@ build/
 .flutter-plugins-dependencies
 .flutter-plugins-dependencies.macos
 .metadata
+!.metadata
 pubspec.lock
+!pubspec.lock
 *.iml
 *.ipr
 *.iws
