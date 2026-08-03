@@ -42,6 +42,17 @@ dependencies:
   fl_chart: ^0.69.0
   flutter_local_notifications: ^18.0.1
   workmanager: ^0.9.0
+  path_provider: ^2.1.6
+  shared_preferences: ^2.5.5
+
+dependency_overrides:
+  # Pin objective_c to 9.1.0 (hook/build.dart landed in 9.2.x): Dart
+  # native-assets build hooks fail on Windows when the user home path contains
+  # spaces (e.g. C:\Users\RED CHAMBER). Same rationale as the sqlite3 pin.
+  # path_provider_foundation 2.5.0 is the newest line whose objective_c
+  # constraint (^9.1.0) still permits the hook-free 9.1.0.
+  objective_c: 9.1.0
+  path_provider_foundation: 2.5.0
 
 dev_dependencies:
   flutter_test:

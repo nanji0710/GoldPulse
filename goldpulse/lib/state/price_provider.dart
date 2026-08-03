@@ -2,6 +2,7 @@
 // 行情全局状态：价格轮询 StreamProvider + 依赖注入入口。
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/price_dao.dart';
 import '../models/gold_price.dart';
@@ -15,10 +16,21 @@ final dioProvider = Provider<Dio>((ref) => throw UnimplementedError('dioProvider
 final priceApiProvider = Provider((ref) => PriceApi(dio: ref.watch(dioProvider)));
 final priceDaoProvider = Provider((ref) => PriceDao());
 
-/// 行情轮询：交易时段每 2 分钟拉取并入库；休市保持缓存（省电）。失败降级为缓存。
+/// 行情刷新间隔偏好（秒），由设置页写入，默认 120 秒（2 分钟）。
+const refreshIntervalPrefKey = 'refreshIntervalSeconds';
+
+final refreshIntervalProvider = FutureProvider<Duration>((ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  final seconds = prefs.getInt(refreshIntervalPrefKey);
+  return Duration(seconds: seconds ?? 120);
+});
+
+/// 行情轮询：交易时段每隔 [refreshIntervalProvider] 拉取并入库；休市保持缓存（省电）。
+/// 失败降级为缓存。间隔偏好变化时（设置页修改后 invalidate）本流自动重启。
 final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final api = ref.watch(priceApiProvider);
   final dao = ref.watch(priceDaoProvider);
+  final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
   yield last;
   while (true) {
@@ -34,6 +46,6 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
       }
     }
     yield last;
-    await Future.delayed(const Duration(minutes: 2));
+    await Future.delayed(interval);
   }
 });
