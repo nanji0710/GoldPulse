@@ -2400,12 +2400,14 @@ git commit -m "feat: add candlestick chart for market page"
 ```dart
 // test/price_api_test.dart 追加
 test('新浪接口解析（字段为 s2/h 格式字符串）', () {
-  // 新浪行情格式：var hq_str=...="1,goldTd,价格,..."
+  // 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
+  // （字段序号随品种可能变化，本映射需上线时对真实行情实测校准）
   final gp = PriceApi.parseSinaGoldPrice(
       'var hq_str=gold="1,沪金T+D,780.20,779.00,776.70"',
       code: 'SGE-Au(T+D)');
   expect(gp, isNotNull);
-  expect(gp!.price, closeTo(780.20, 0.001));
+  expect(gp!.price, closeTo(776.70, 0.001));   // 最新价 = 索引 4
+  expect(gp.preClose, closeTo(779.00, 0.001)); // 昨收 = 索引 3
 });
 ```
 
@@ -2421,13 +2423,14 @@ Expected: FAIL（`parseSinaGoldPrice` 未定义）
 import 'dart:convert';
 
 static GoldPrice? parseSinaGoldPrice(String raw, {String code = 'SGE-Au(T+D)'}) {
-  // 新浪返回形如：var hq_str="1,沪金T+D,开,昨收,最新,..."（字段序号随品种变化，容错取索引 1/2/3 尝试）
+  // 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
+  // 索引：0=市场 1=名称 2=开盘 3=昨收 4=最新（字段序号随品种可能变化，上线时需实测校准）
   final m = RegExp(r'"([^"]*)"').firstMatch(raw);
   if (m == null) return null;
   final parts = m.group(1)!.split(',');
   if (parts.length < 5) return null;
-  final price = double.tryParse(parts[3] ?? '');
-  final preClose = double.tryParse(parts[2] ?? '');
+  final price = double.tryParse(parts[4] ?? '');     // 最新价
+  final preClose = double.tryParse(parts[3] ?? '');  // 昨收
   if (price == null || preClose == null) return null;
   return GoldPrice(code: code, price: price, change: price - preClose,
       percent: preClose == 0 ? 0 : (price - preClose) / preClose * 100,
