@@ -20,7 +20,8 @@ class HoldingListTile extends ConsumerWidget {
       color: AppTheme.card,
       child: ListTile(
         title: Text(holding.name),
-        subtitle: Text('${fmtGrams(holding.amount)}g · 成本 ${fmtPrice(Calculator.avgCost(holding.totalCost, holding.amount))} 元/g'),
+        subtitle: Text('${fmtGrams(holding.amount)}g · 成本 ${fmtPrice(Calculator.avgCost(holding.totalCost, holding.amount))} 元/g',
+            style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
         trailing: const Icon(Icons.chevron_right),
         onLongPress: () => _showActions(context, ref),
       ),

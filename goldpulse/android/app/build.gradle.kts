@@ -17,21 +17,33 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.goldpulse.goldpulse"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // MVP 约定（brief）：targetSdk 34（≤ compileSdk 36）。minSdk 保留
+        // flutter.minSdkVersion（当前 24，即 Flutter 推荐下限；brief 原写 23，
+        // 但 flutter build 的 gradle 迁移步骤会把显式 23 重置回 flutter.minSdkVersion，
+        // 且 23 会触发插件 minSdk 告警，故采用 24）。各插件均允许此值。
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
+        // versionCode/versionName 由 pubspec.yaml（0.1.0+1）单一来源决定。
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // 发布签名：密钥库 android/keystore/goldpulse.jks（*.jks 已被 .gitignore 忽略，禁止入库）。
+        // storePassword/keyPassword 从构建环境变量 GOLDPULSE_KEY_PASS 读取；未设置时 release 构建会失败，
+        // 详见 docs/RELEASE.md。
+        create("release") {
+            storeFile = file("../keystore/goldpulse.jks")
+            storePassword = System.getenv("GOLDPULSE_KEY_PASS")
+            keyAlias = "goldpulse"
+            keyPassword = System.getenv("GOLDPULSE_KEY_PASS")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

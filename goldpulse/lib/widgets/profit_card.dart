@@ -20,11 +20,20 @@ class ProfitCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('浙商积存金', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 8),
-          Text('${fmtGrams(grams)}g', style: Theme.of(context).textTheme.titleMedium),
-          Text('成本 ${fmtPrice(avgCost)} 元/g', style: Theme.of(context).textTheme.bodyMedium),
+          Text('${fmtGrams(grams)}g',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+          Text('成本 ${fmtPrice(avgCost)} 元/g',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
           const SizedBox(height: 8),
           Text('收益 ${arrow(floatingProfit)} ${fmtAmount(floatingProfit.abs())} 元  (${profitRate.toStringAsFixed(1)}%)',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: color)),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: color, fontFeatures: const [FontFeature.tabularFigures()])),
         ]),
       ),
     );

@@ -25,7 +25,8 @@ class GoldCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(fmtPrice(price),
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: AppTheme.textPrimary)),
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      color: AppTheme.textPrimary, fontFeatures: const [FontFeature.tabularFigures()])),
               const SizedBox(width: 4),
               Text('元/g', style: Theme.of(context).textTheme.bodyMedium),
             ],
@@ -33,7 +34,8 @@ class GoldCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(children: [
             Text('${arrow(change)} ${fmtAmount(change.abs())}  (+${percent.toStringAsFixed(2)}%)',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: color)),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: color, fontFeatures: const [FontFeature.tabularFigures()])),
           ]),
         ]),
       ),
