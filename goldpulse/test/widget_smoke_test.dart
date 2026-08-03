@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:goldpulse/models/gold_price.dart';
+import 'package:goldpulse/pages/asset_page.dart';
 import 'package:goldpulse/pages/home_page.dart';
 import 'package:goldpulse/pages/onboarding_page.dart';
 import 'package:goldpulse/state/price_provider.dart';
@@ -27,5 +28,11 @@ void main() {
     await tester.pump();
     expect(find.text('780.20'), findsOneWidget);
     expect(find.text('Au9999'), findsOneWidget);
+  });
+
+  testWidgets('资产页空状态提示录入', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: AssetPage())));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('添加你的第一笔黄金持仓'), findsOneWidget);
   });
 }
