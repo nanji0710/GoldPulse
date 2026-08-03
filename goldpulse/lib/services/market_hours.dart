@@ -19,10 +19,13 @@ class MarketHours {
   }
 
   static bool _isNightSession(DateTime now) {
-    if (now.weekday == DateTime.saturday && now.hour < 3) return true; // 周六凌晨属夜盘尾
-    if (now.weekday == DateTime.friday && now.hour >= 21) return true;  // 周五夜盘（跨周六）
-    if (now.weekday == DateTime.sunday && now.hour < 3) return true;    // 周日凌晨是周六夜盘尾
-    return now.hour >= 21 || (now.hour < 3 && now.weekday != DateTime.monday);
+    final minutes = now.hour * 60 + now.minute;
+    // 凌晨 00:00–02:30：周二至周六 = 前一夜盘尾；周一/周日无夜盘尾（周日无夜盘）
+    if (minutes < 150) {
+      return now.weekday != DateTime.monday && now.weekday != DateTime.sunday;
+    }
+    // 21:00–23:59：仅周一至周五有夜盘（周六、周日无夜盘）
+    return now.hour >= 21 && now.weekday <= DateTime.friday;
   }
 
   static bool isTrading(DateTime now) => phaseAt(now) == MarketPhase.trading;

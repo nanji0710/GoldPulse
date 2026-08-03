@@ -33,4 +33,16 @@ void main() {
   test('周日休市（weekend）', () {
     expect(MarketHours.phaseAt(DateTime(2026, 8, 2, 12)), MarketPhase.weekend);
   });
+  test('周一凌晨 0:00–2:30 休市（周日无夜盘）', () {
+    expect(MarketHours.phaseAt(DateTime(2026, 8, 3, 1)), MarketPhase.closed);
+  });
+  test('周六凌晨 2:00 仍属周五夜盘尾', () {
+    expect(MarketHours.phaseAt(DateTime(2026, 8, 1, 2)), MarketPhase.trading);
+  });
+  test('凌晨 2:45 已收盘（夜盘 2:30 截止）', () {
+    expect(MarketHours.phaseAt(DateTime(2026, 8, 4, 2, 45)), MarketPhase.closed);
+  });
+  test('周六凌晨 2:45 休市', () {
+    expect(MarketHours.phaseAt(DateTime(2026, 8, 1, 2, 45)), MarketPhase.weekend);
+  });
 }
