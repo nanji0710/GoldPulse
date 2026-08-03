@@ -121,8 +121,9 @@ dependencies:
   intl: ^0.19.0
   fl_chart: ^0.69.0
   flutter_local_notifications: ^18.0.1
-  workmanager: ^0.10.0
-  # ^0.10.0 原因：0.5.x 使用已被 Flutter 3.44 移除的 v1 embedding shim，无法编译 APK；≥0.6.0 起移除 shim。
+  workmanager: ^0.9.0
+  # ^0.9.0 原因：0.5.x 使用已被 Flutter 3.44 移除的 v1 embedding shim，无法编译 APK；≥0.6.0 起移除 shim。
+  # 用 0.9.x 而非 0.10.x：本环境 pub 镜像（pub.flutter-io.cn）最高只提供 0.9.0+3，0.10.x 需官方源，会导致镜像环境 pub get 失败。
 dev_dependencies:
   flutter_test:
     sdk: flutter
