@@ -31,36 +31,71 @@ class SettingPage extends ConsumerWidget {
     final interval = ref.watch(refreshIntervalProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
-      body: ListView(children: [
-        const _SectionTitle('刷新频率'),
-        ListTile(
-          title: const Text('行情刷新间隔'),
-          subtitle: Text(interval != null ? '当前 ${_label(interval)}' : '默认 2 分钟'),
-          onTap: () => _pickRefreshRate(context, ref),
-        ),
-        const Divider(color: AppTheme.card),
-        const _SectionTitle('数据管理'),
-        ListTile(
-          title: const Text('导出备份（JSON）'),
-          subtitle: const Text('保存持仓、交易、提醒到本地 JSON 文件（不含价格历史）'),
-          onTap: () => _exportBackup(context, ref),
-        ),
-        ListTile(
-          title: const Text('导入备份'),
-          subtitle: const Text('从本地 JSON 文件恢复数据（将清空本机价格历史）'),
-          onTap: () => _importBackup(context, ref),
-        ),
-        ListTile(
-          title: const Text('清空全部数据'),
-          subtitle: const Text('删除全部持仓、交易、提醒与价格历史'),
-          onTap: () => _clearAll(context, ref),
-        ),
-        const Divider(color: AppTheme.card),
-        const _SectionTitle('关于'),
-        const ListTile(title: Text('金脉 GoldPulse v0.1.0'), subtitle: Text('本地 · 免费 · 无账号')),
-      ]),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
+        children: [
+          const _SectionTitle('刷新频率'),
+          _groupCard([
+            ListTile(
+              leading: const Icon(Icons.timelapse, color: AppTheme.gold),
+              title: const Text('行情刷新间隔'),
+              subtitle:
+                  Text(interval != null ? '当前 ${_label(interval)}' : '默认 2 分钟'),
+              onTap: () => _pickRefreshRate(context, ref),
+            ),
+          ]),
+          const _SectionTitle('数据管理'),
+          _groupCard([
+            ListTile(
+              leading: const Icon(Icons.upload, color: AppTheme.textSecondary),
+              title: const Text('导出备份（JSON）'),
+              subtitle: const Text('保存持仓、交易、提醒到本地 JSON 文件（不含价格历史）'),
+              onTap: () => _exportBackup(context, ref),
+            ),
+            const Divider(height: 1, color: AppTheme.divider),
+            ListTile(
+              leading: const Icon(Icons.download, color: AppTheme.textSecondary),
+              title: const Text('导入备份'),
+              subtitle: const Text('从本地 JSON 文件恢复数据（将清空本机价格历史）'),
+              onTap: () => _importBackup(context, ref),
+            ),
+            const Divider(height: 1, color: AppTheme.divider),
+            ListTile(
+              leading:
+                  const Icon(Icons.delete_sweep_outlined, color: AppTheme.up),
+              title: const Text('清空全部数据'),
+              subtitle: const Text('删除全部持仓、交易、提醒与价格历史'),
+              onTap: () => _clearAll(context, ref),
+            ),
+          ]),
+          const _SectionTitle('关于'),
+          _groupCard([
+            const ListTile(
+              leading: Icon(Icons.info_outline, color: AppTheme.textSecondary),
+              title: Text('金脉 GoldPulse'),
+              subtitle: Text('本地 · 免费 · 无账号'),
+              trailing: _VersionBadge(),
+            ),
+          ]),
+        ],
+      ),
     );
   }
+}
+
+/// 分组卡片：card 底色 + 16 圆角 + divider 描边，内嵌若干 ListTile（卡片间约 8px 间距）。
+Widget _groupCard(List<Widget> children) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Container(
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(children: children),
+    ),
+  );
 }
 
 String _label(Duration d) => _refreshOptions[d.inSeconds] ?? '${d.inSeconds} 秒';
@@ -197,6 +232,30 @@ String _timestamp() {
   return '${n.year}${two(n.month)}${two(n.day)}-${two(n.hour)}${two(n.minute)}${two(n.second)}';
 }
 
+/// 版本徽标：金色胶囊（gold alpha 0.14 底 + 金色 v0.1.0 文字）。
+class _VersionBadge extends StatelessWidget {
+  const _VersionBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.gold.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Text(
+        'v0.1.0',
+        style: TextStyle(
+          fontSize: 11,
+          color: AppTheme.gold,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
   final String title;
   const _SectionTitle(this.title);
@@ -204,7 +263,8 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      // 顶部 8：卡片组之间保持约 8px 间距。
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Text(title,
           style: const TextStyle(
               color: AppTheme.gold, fontSize: 13, fontWeight: FontWeight.w600)),
