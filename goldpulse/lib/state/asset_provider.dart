@@ -83,3 +83,103 @@ final assetSummaryProvider = FutureProvider<AssetSummary?>((ref) async {
       holding: h,
       sellTrades: sells);
 });
+
+/// 按品种聚合的持仓收益汇总。
+/// kind: 'accumulation'(浙商) | 'icbc'(工商) | 'au9999'；label 为中文品种名。
+class TypeAssetSummary {
+  final String kind;
+  final String label;
+  final double totalGrams;
+  final double totalCost;
+  final double avgCost;
+  final double? currentPrice; // 无行情时为 null
+  final double? preClose;
+  final double floatingProfit;   // 持仓收益
+  final double todayProfit;      // 今日盈亏
+  final double cumulativeProfit; // 累计收益
+  final int holdingCount;
+  const TypeAssetSummary({
+    required this.kind, required this.label,
+    required this.totalGrams, required this.totalCost, required this.avgCost,
+    this.currentPrice, this.preClose,
+    required this.floatingProfit, required this.todayProfit, required this.cumulativeProfit,
+    required this.holdingCount,
+  });
+}
+
+String _kindLabel(String kind) => switch (kind) {
+      'accumulation' => '浙商积存金',
+      'icbc' => '工商积存金',
+      _ => 'Au9999',
+    };
+
+/// 按品种聚合全部持仓的收益汇总（同品种多笔合并：克重求和、均价=总成本÷总克重）。
+/// 每个品种用其自身行情价计算三口径；无行情 → currentPrice=null（收益记 0，UI 显示 '--'）。
+final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async {
+  final holdings = await ref.watch(holdingsProvider.future);
+  if (holdings.isEmpty) return const [];
+  final trades = await ref.read(tradeDaoProvider).all();
+  // 固定品种顺序：浙商 → 工商 → Au9999
+  const order = ['accumulation', 'icbc', 'au9999'];
+  final byKind = <String, List<Holding>>{};
+  for (final h in holdings) {
+    byKind.putIfAbsent(h.kind, () => []).add(h);
+  }
+  final results = <TypeAssetSummary>[];
+  for (final kind in order) {
+    final hs = byKind[kind];
+    if (hs == null || hs.isEmpty) continue;
+    final totalGrams = hs.fold(0.0, (s, h) => s + h.amount);
+    final totalCost = hs.fold(0.0, (s, h) => s + h.totalCost);
+    final ids = hs.map((h) => h.id).toSet();
+    final sells = trades.where((t) => ids.contains(t.holdingId) && t.type == 'sell');
+    final price = kind == 'icbc'
+        ? ref.watch(icbcPriceProvider).valueOrNull
+        : kind == 'accumulation'
+            ? ref.watch(accumulationPriceProvider).valueOrNull
+            : ref.watch(priceProvider).valueOrNull;
+    results.add(TypeAssetSummary(
+      kind: kind,
+      label: _kindLabel(kind),
+      totalGrams: totalGrams,
+      totalCost: totalCost,
+      avgCost: Calculator.avgCost(totalCost, totalGrams),
+      currentPrice: price?.price,
+      preClose: price?.preClose,
+      floatingProfit: price == null
+          ? 0
+          : Calculator.floatingProfit(price.price, totalGrams, totalCost),
+      todayProfit: price == null
+          ? 0
+          : Calculator.todayProfit(price.price, price.preClose, totalGrams),
+      cumulativeProfit: price == null
+          ? 0
+          : Calculator.cumulativeProfit(
+              currentPrice: price.price, amount: totalGrams,
+              totalCost: totalCost, sellTrades: sells),
+      holdingCount: hs.length,
+    ));
+  }
+  return results;
+});
+
+/// 全部持仓合计（跨品种线性相加）。
+final totalAssetSummaryProvider = FutureProvider<TypeAssetSummary?>((ref) async {
+  final list = await ref.watch(typeSummariesProvider.future);
+  if (list.isEmpty) return null;
+  final grams = list.fold(0.0, (s, t) => s + t.totalGrams);
+  final cost = list.fold(0.0, (s, t) => s + t.totalCost);
+  return TypeAssetSummary(
+    kind: 'all',
+    label: '全部持仓',
+    totalGrams: grams,
+    totalCost: cost,
+    avgCost: Calculator.avgCost(cost, grams),
+    currentPrice: null,
+    preClose: null,
+    floatingProfit: list.fold(0.0, (s, t) => s + t.floatingProfit),
+    todayProfit: list.fold(0.0, (s, t) => s + t.todayProfit),
+    cumulativeProfit: list.fold(0.0, (s, t) => s + t.cumulativeProfit),
+    holdingCount: list.fold(0, (s, t) => s + t.holdingCount),
+  );
+});
