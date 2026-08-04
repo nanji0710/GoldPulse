@@ -59,9 +59,19 @@ class PriceApi {
         preClose: preClose, time: DateTime.now().millisecondsSinceEpoch);
   }
 
-  /// 降级链：主源 → 备用源 → null（调用方回落本地缓存）。
+  /// 降级链：主源（京东）→ 备用（东方财富）→ 兜底（新浪）→ null（调用方回落本地缓存）。
   Future<GoldPrice?> fetchGoldPriceWithFallback(String code) async {
     try { return await fetchGoldPrice(code); } on ApiException { /* fall */ }
+    try {
+      final res = await dio.get(_eastmoneyUrl,
+          queryParameters: {
+            'secid': '118.AU9999',
+            'fields': 'f43,f44,f45,f46,f57,f58,f60,f170',
+          },
+          options: Options(receiveTimeout: const Duration(seconds: 8)));
+      if (res.data is! Map<String, dynamic>) return null;
+      return parseEastmoneyGoldPrice(res.data as Map<String, dynamic>, code: code);
+    } on DioException { /* fall */ }
     try {
       final res = await dio.get('https://hq.sinajs.cn/list=shau9999',
           options: Options(
@@ -72,6 +82,31 @@ class PriceApi {
           ));
       return parseSinaGoldPrice(res.data.toString(), code: code);
     } on DioException { return null; }
+  }
+
+  static const _eastmoneyUrl = 'https://push2.eastmoney.com/api/qt/stock/get';
+
+  /// 东方财富 Au9999（上金所）解析。实测（2026-08-04）：
+  ///   data.f43=最新价（×100 缩放，88380→883.80），f60=昨收（×100），
+  ///   f57=代码，f58=名称，f170=涨跌幅（×100）。
+  static GoldPrice? parseEastmoneyGoldPrice(Map<String, dynamic> json,
+      {String code = 'SGE-Au(T+D)'}) {
+    final data = json['data'];
+    if (data is! Map) return null;
+    final price = _toDouble(data['f43']);
+    final preClose = _toDouble(data['f60']);
+    if (price == null || preClose == null) return null;
+    const scale = 100.0; // 东财价格按 100 缩放
+    final p = price / scale;
+    final pre = preClose / scale;
+    return GoldPrice(
+      code: (data['f57'] as String?) ?? code,
+      price: p,
+      change: p - pre,
+      percent: pre == 0 ? 0 : (p - pre) / pre * 100,
+      preClose: pre,
+      time: DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
   /// 容错解析：遍历可能的字段路径。字段变动时只需改本方法。

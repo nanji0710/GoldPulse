@@ -8,6 +8,7 @@ import 'package:goldpulse/pages/market_page.dart';
 import 'package:goldpulse/pages/onboarding_page.dart';
 import 'package:goldpulse/pages/setting_page.dart';
 import 'package:goldpulse/state/holding_provider.dart';
+import 'package:goldpulse/state/onboarding_provider.dart';
 
 class GoldPulseApp extends StatelessWidget {
   const GoldPulseApp({super.key});
@@ -26,18 +27,23 @@ class GoldPulseApp extends StatelessWidget {
   }
 }
 
-/// 启动门控：无持仓 → 首次引导页；有持仓 → 主界面（计划要求"无持仓时进引导"）。
+/// 启动门控：仅当「未完成首次引导」且「无持仓」时进引导页；
+/// 完成引导（onboarding_done 标记）后即使无持仓也直接进主界面。
 /// 引导页的 pushReplacementNamed('/home') 仍落在 MainShell。
 class StartupGate extends ConsumerWidget {
   const StartupGate({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(holdingsProvider).when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      // 持仓读取失败时兜底进入主界面，避免阻塞应用（可从资产页补录）。
-      error: (_, _) => const MainShell(),
-      data: (holdings) => holdings.isEmpty ? const OnboardingPage() : const MainShell(),
-    );
+    final onboarded = ref.watch(onboardedProvider).value ?? false;
+    final holdings = ref.watch(holdingsProvider);
+    if (holdings.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    // 持仓读取失败时兜底进入主界面，避免阻塞应用（可从资产页补录）。
+    if (holdings.hasError) return const MainShell();
+    final hasHoldings = (holdings.value ?? []).isNotEmpty;
+    if (!onboarded && !hasHoldings) return const OnboardingPage();
+    return const MainShell();
   }
 }
 

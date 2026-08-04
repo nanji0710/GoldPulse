@@ -1,16 +1,25 @@
 // lib/pages/onboarding_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:goldpulse/constants/app_theme.dart';
+import 'package:goldpulse/state/onboarding_provider.dart';
 
-class OnboardingPage extends StatefulWidget {
+class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
   @override
-  State<OnboardingPage> createState() => _OnboardingPageState();
+  ConsumerState<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> {
+class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final _controller = PageController();
   int _page = 0;
+
+  /// 跳过或走完流程：标记引导完成（持久化），随后进入主界面。
+  Future<void> _finishOnboarding() async {
+    await ref.read(completeOnboardingProvider.future);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/home');
+  }
 
   static const _steps = [
     ('本地 · 免费 · 无账号', '你的黄金数据只保存在本机，不依赖任何服务器'),
@@ -27,7 +36,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         child: Column(children: [
           Align(
             alignment: Alignment.topRight,
-            child: TextButton(onPressed: () => Navigator.of(context).pushReplacementNamed('/home'),
+            child: TextButton(onPressed: _finishOnboarding,
                 child: const Text('跳过')),
           ),
           const Padding(
@@ -59,7 +68,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             child: FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppTheme.gold, minimumSize: const Size.fromHeight(52)),
               onPressed: _page == _steps.length - 1
-                  ? () => Navigator.of(context).pushReplacementNamed('/home')
+                  ? _finishOnboarding
                   : () => _controller.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
               child: Text(_page == _steps.length - 1 ? '开始使用' : '下一步'),
             ),

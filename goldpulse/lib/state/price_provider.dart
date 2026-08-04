@@ -47,7 +47,9 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
   yield last;
   while (true) {
-    if (isTradingNow()) {
+    // 交易中才轮询（省电）；但若无任何缓存数据（新装/清库），休市时段也拉取一次，
+    // 避免新用户休市时段无限"行情加载中"。
+    if (isTradingNow() || last == null) {
       try {
         final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
         if (fresh != null) {
@@ -79,6 +81,8 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
       }
     }
     yield last;
-    await Future.delayed(interval);
+    // 尚无任何数据时（新装/清库/首拉失败）用 30s 快速重试，直到首次成功；
+    // 已有缓存后恢复配置间隔（省电）。
+    await Future.delayed(last == null ? const Duration(seconds: 30) : interval);
   }
 });

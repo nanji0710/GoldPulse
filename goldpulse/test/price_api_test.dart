@@ -112,6 +112,21 @@ void main() {
     );
   });
 
+  test('东方财富备用源解析（实测结构 data.f43/f60，价格×100 缩放）', () {
+    final gp = PriceApi.parseEastmoneyGoldPrice({
+      'data': {'f43': 88380, 'f60': 88304, 'f57': 'AU9999'},
+    });
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(883.80, 0.001));
+    expect(gp.preClose, closeTo(883.04, 0.001));
+    expect(gp.change, closeTo(0.76, 0.001));
+    expect(gp.code, 'AU9999');
+  });
+
+  test('东方财富缺少 data 时返回 null（继续降级）', () {
+    expect(PriceApi.parseEastmoneyGoldPrice({'rc': 100}), isNull);
+  });
+
   test('新浪接口解析（字段为 s2/h 格式字符串）', () {
     // 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
     // （字段序号随品种可能变化，本映射需上线时对真实行情实测校准）
