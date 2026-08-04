@@ -130,8 +130,11 @@ class _MarketPageState extends ConsumerState<MarketPage> {
   /// 同一条数据（轮询重发）不重复查询。
   void _maybeReload(AsyncValue<GoldPrice?>? prev, AsyncValue<GoldPrice?> next) {
     if (!next.hasValue) return;
-    final nextTime = next.value!.time;
-    final prevTime = prev != null && prev.hasValue ? prev.value!.time : null;
+    // AsyncData(null)（空库/首拉前）value 为 null，无时间戳可比较 → 跳过。
+    final nextTime = next.valueOrNull?.time;
+    if (nextTime == null) return;
+    final prevTime =
+        prev != null && prev.hasValue ? prev.valueOrNull?.time : null;
     if (nextTime == prevTime) return;
     _load();
   }

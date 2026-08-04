@@ -50,4 +50,35 @@ void main() {
     expect(find.text('7日'), findsOneWidget);
     expect(find.text('30日'), findsOneWidget);
   });
+
+  testWidgets('行情页三类型切换：头卡价格随激活类型切换', (tester) async {
+    // Au9999 给固定实时价；浙商/工商无真实源 → 空流（AsyncData(null)），
+    // 同时覆盖 Task7 评审指出的 AsyncData(null) 监听崩溃路径。
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(
+            GoldPrice(
+                code: 'Au9999', price: 780.20, change: 3.50, percent: 0.45, preClose: 776.70, time: 1))),
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: MarketPage()),
+    ));
+    await tester.pumpAndSettle();
+    // 默认 Au9999：头卡显示实时价（区间统计空库为 '--'，不与价格文案冲突）
+    expect(find.text('780.20'), findsOneWidget);
+
+    await tester.tap(find.text('浙商积存金'));
+    await tester.pumpAndSettle();
+    expect(find.text('780.20'), findsNothing); // 浙商无实时价 → 头卡 '--'
+
+    await tester.tap(find.text('工商积存金'));
+    await tester.pumpAndSettle();
+    expect(find.text('780.20'), findsNothing); // 工商无实时价 → 头卡 '--'
+
+    await tester.tap(find.text('Au9999'));
+    await tester.pumpAndSettle();
+    expect(find.text('780.20'), findsOneWidget); // 切回 Au9999 恢复实时价
+  });
 }
