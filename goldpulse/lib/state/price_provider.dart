@@ -22,6 +22,16 @@ final priceDaoProvider = Provider((ref) => PriceDao());
 /// 从而在不依赖系统时钟的前提下驱动轮询测试。
 final isTradingNowProvider = Provider<bool Function()>((ref) => () => MarketHours.isTrading(DateTime.now()));
 
+/// 下次刷新时刻（秒级倒计时展示用）。两个轮询器每次调度后写入。
+class NextRefreshNotifier extends Notifier<DateTime?> {
+  @override
+  DateTime? build() => null;
+  void set(DateTime t) => state = t;
+}
+
+final nextRefreshProvider =
+    NotifierProvider<NextRefreshNotifier, DateTime?>(NextRefreshNotifier.new);
+
 /// 行情刷新间隔偏好（秒），由设置页写入，默认 120 秒（2 分钟）。
 const refreshIntervalPrefKey = 'refreshIntervalSeconds';
 
@@ -44,6 +54,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final holdingDao = ref.watch(holdingDaoProvider);
   final alertDao = ref.watch(alertDaoProvider);
   final notifications = ref.watch(notificationsPluginProvider);
+  final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
   yield last;
   while (true) {
@@ -83,6 +94,38 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
     yield last;
     // 尚无任何数据时（新装/清库/首拉失败）用 30s 快速重试，直到首次成功；
     // 已有缓存后恢复配置间隔（省电）。
-    await Future.delayed(last == null ? const Duration(seconds: 30) : interval);
+    final delay = last == null ? const Duration(seconds: 30) : interval;
+    nextRefresh.set(DateTime.now().add(delay));
+    await Future.delayed(delay);
+  }
+});
+
+/// 浙商积存金行情轮询（京东积存金接口，code='CZB-JCJ'）。
+/// 用户实际持仓品种：首页价格卡与盈亏计算均以其为准。
+/// 同样：交易中才轮询；无缓存时休市也拉取一次；失败降级到本地缓存。
+final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
+  final api = ref.watch(priceApiProvider);
+  final dao = ref.watch(priceDaoProvider);
+  final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
+  final isTradingNow = ref.watch(isTradingNowProvider);
+  final nextRefresh = ref.watch(nextRefreshProvider.notifier);
+  GoldPrice? last = await dao.latest('CZB-JCJ');
+  yield last;
+  while (true) {
+    if (isTradingNow() || last == null) {
+      try {
+        final fresh = await api.fetchAccumulationPrice();
+        if (fresh != null) {
+          await dao.insert(fresh);
+          last = fresh;
+        }
+      } catch (_) {
+        // 拉取失败保留缓存继续轮询。
+      }
+    }
+    yield last;
+    final delay = last == null ? const Duration(seconds: 30) : interval;
+    nextRefresh.set(DateTime.now().add(delay));
+    await Future.delayed(delay);
   }
 });

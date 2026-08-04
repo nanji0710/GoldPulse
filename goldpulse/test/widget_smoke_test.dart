@@ -23,7 +23,12 @@ void main() {
 
   testWidgets('首页展示 Au9999 大数字价格与涨跌', (tester) async {
     await tester.pumpWidget(ProviderScope(
-      overrides: [priceProvider.overrideWith((ref) => _fixedPriceStream)],
+      overrides: [
+        priceProvider.overrideWith((ref) => _fixedPriceStream),
+        // 测试环境无真实 dio：积存金轮询直接给空流，避免触发 UnimplementedError。
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
       child: const MaterialApp(home: HomePage()),
     ));
     await tester.pump();

@@ -9,7 +9,8 @@ class GoldCard extends StatelessWidget {
   final double price;
   final double change;
   final double percent;
-  final String? statusLabel; // 如 "交易中" / "休市"
+  final String? statusLabel; // 如 "交易中" / "午间休市"
+  final String? statusHint;  // 如 "13:30 恢复交易"
   final bool? isTrading;
 
   const GoldCard({
@@ -19,6 +20,7 @@ class GoldCard extends StatelessWidget {
     required this.change,
     required this.percent,
     this.statusLabel,
+    this.statusHint,
     this.isTrading,
   });
 
@@ -66,6 +68,12 @@ class GoldCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             color: trading ? AppTheme.gold : AppTheme.textSecondary,
                             fontWeight: FontWeight.w600)),
+                    if (statusHint != null) ...[
+                      const SizedBox(width: 6),
+                      Text(statusHint!,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppTheme.textSecondary)),
+                    ],
                   ]),
                 ),
             ],

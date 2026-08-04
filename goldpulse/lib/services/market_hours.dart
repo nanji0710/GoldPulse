@@ -30,15 +30,53 @@ class MarketHours {
 
   static bool isTrading(DateTime now) => phaseAt(now) == MarketPhase.trading;
 
+  /// 下一个开市时刻（精确到时段），交易中返回 null。
+  /// 午间休市 → 当日 13:30；15:30 收盘 → 当日 21:00 夜盘；
+  /// 凌晨休市 → 当日 9:00；周末 → 下周一 9:00。
   static DateTime? nextOpen(DateTime now) {
     final p = phaseAt(now);
     if (p == MarketPhase.trading) return null;
-    // 简化：下一交易日 9:00；周五收盘后/周末 → 下周一 9:00
-    var d = now.copyWith(hour: 9, minute: 0, second: 0, millisecond: 0, microsecond: 0);
-    if (d.isBefore(now)) d = d.add(const Duration(days: 1));
-    while (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
-      d = d.add(const Duration(days: 1));
+    final minutes = now.hour * 60 + now.minute;
+    switch (p) {
+      case MarketPhase.lunchBreak:
+        return now.copyWith(hour: 13, minute: 30, second: 0, millisecond: 0, microsecond: 0);
+      case MarketPhase.closed:
+        // 15:30–21:00 → 当日 21:00 夜盘；凌晨 2:30–9:00 → 当日 9:00
+        if (minutes >= 15 * 60 + 30 && minutes < 21 * 60) {
+          return now.copyWith(hour: 21, minute: 0, second: 0, millisecond: 0, microsecond: 0);
+        }
+        return now.copyWith(hour: 9, minute: 0, second: 0, millisecond: 0, microsecond: 0);
+      case MarketPhase.weekend:
+        var d = now.copyWith(hour: 9, minute: 0, second: 0, millisecond: 0, microsecond: 0);
+        while (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
+          d = d.add(const Duration(days: 1));
+        }
+        return d;
+      case MarketPhase.trading:
+        return null;
     }
-    return d;
+  }
+
+  /// 当前时段中文标签（供状态胶囊显示）。
+  static String label(DateTime now) => switch (phaseAt(now)) {
+        MarketPhase.trading => '交易中',
+        MarketPhase.lunchBreak => '午间休市',
+        MarketPhase.closed => '已收盘',
+        MarketPhase.weekend => '休市',
+      };
+
+  static const _weekdayCn = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+  /// 恢复交易提示文案，如"13:30 恢复交易"、"21:00 夜盘开盘"、"周一 9:00 开盘"。
+  static String? resumeHint(DateTime now) {
+    final next = nextOpen(now);
+    if (next == null) return null;
+    final hm = '${next.hour.toString().padLeft(2, '0')}:${next.minute.toString().padLeft(2, '0')}';
+    return switch (phaseAt(now)) {
+      MarketPhase.lunchBreak => '$hm 恢复交易',
+      MarketPhase.closed => '$hm 开盘',
+      MarketPhase.weekend => '${_weekdayCn[next.weekday - 1]} $hm 开盘',
+      _ => null,
+    };
   }
 }

@@ -45,4 +45,39 @@ void main() {
   test('周六凌晨 2:45 休市', () {
     expect(MarketHours.phaseAt(DateTime(2026, 8, 1, 2, 45)), MarketPhase.weekend);
   });
+  // ---- 下一开市时刻（精确到时段）----
+  test('午间休市 → 当日 13:30 恢复', () {
+    final next = MarketHours.nextOpen(DateTime(2026, 8, 3, 12, 0))!;
+    expect(next.hour, 13);
+    expect(next.minute, 30);
+    expect(next.day, 3);
+  });
+  test('15:30 收盘 → 当日 21:00 夜盘', () {
+    final next = MarketHours.nextOpen(DateTime(2026, 8, 3, 17, 0))!;
+    expect(next.hour, 21);
+    expect(next.day, 3);
+  });
+  test('凌晨 3 点 → 当日 9:00 开盘', () {
+    final next = MarketHours.nextOpen(DateTime(2026, 8, 4, 3, 0))!;
+    expect(next.hour, 9);
+    expect(next.day, 4);
+  });
+  test('周末 → 下周一 9:00 开盘', () {
+    final next = MarketHours.nextOpen(DateTime(2026, 8, 2, 12, 0))!; // 周日
+    expect(next.hour, 9);
+    expect(next.weekday, DateTime.monday);
+  });
+  // ---- 时段标签与恢复提示 ----
+  test('时段标签', () {
+    expect(MarketHours.label(DateTime(2026, 8, 3, 10)), '交易中');
+    expect(MarketHours.label(DateTime(2026, 8, 3, 12)), '午间休市');
+    expect(MarketHours.label(DateTime(2026, 8, 3, 17)), '已收盘');
+    expect(MarketHours.label(DateTime(2026, 8, 2, 12)), '休市');
+  });
+  test('恢复提示文案', () {
+    expect(MarketHours.resumeHint(DateTime(2026, 8, 3, 12)), '13:30 恢复交易');
+    expect(MarketHours.resumeHint(DateTime(2026, 8, 3, 17)), '21:00 开盘');
+    expect(MarketHours.resumeHint(DateTime(2026, 8, 2, 12)), '周一 09:00 开盘');
+    expect(MarketHours.resumeHint(DateTime(2026, 8, 3, 10)), isNull);
+  });
 }

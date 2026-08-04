@@ -20,6 +20,27 @@ class PriceApi {
   static const jdGoldUrl =
       'https://api.jdjygold.com/gw2/generic/produTools/h5/m/getGoldPrice';
 
+  /// 浙商积存金最新价接口（京东黄金）。
+  /// 实测（2026-08-04）：resultData.datas.{price, yesterdayPrice, upAndDownAmt, upAndDownRate}
+  static const _jdStdUrl =
+      'https://api.jdjygold.com/gw2/generic/jrm/h5/m/stdLatestPrice';
+  static const _zheShangSku = '1961543816'; // 浙商积存金 productSku
+
+  /// 拉取浙商积存金最新价。失败抛 [ApiException]，由调用方降级到缓存。
+  Future<GoldPrice?> fetchAccumulationPrice() async {
+    try {
+      final res = await dio.get(_jdStdUrl,
+          queryParameters: {'productSku': _zheShangSku},
+          options: Options(receiveTimeout: const Duration(seconds: 8), sendTimeout: const Duration(seconds: 8)));
+      var data = res.data;
+      if (data is String) data = jsonDecode(data);
+      if (data is! Map<String, dynamic>) throw ApiException('响应结构非法');
+      return parseJdGoldPrice(data, fallbackCode: 'CZB-JCJ');
+    } on DioException catch (e) {
+      throw ApiException('网络请求失败: ${e.message}');
+    }
+  }
+
   /// 拉取某行情代码的最新价。失败时抛 [ApiException]，由调用方降级。
   /// 畸形响应（非 JSON / 结构非法）也转为 [ApiException]，使降级链能切换备用源，
   /// 而不是让 FormatException/TypeError 直接冒泡打断轮询流。
