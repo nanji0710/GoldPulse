@@ -15,9 +15,16 @@ class AlertService {
     }
   }
 
+  /// 品种中文名：'au9999'→Au9999、'accumulation'→浙商积存金、'icbc'→工商积存金。
+  static String kindLabel(String kind) => switch (kind) {
+        'accumulation' => '浙商积存金',
+        'icbc' => '工商积存金',
+        _ => 'Au9999',
+      };
+
   static String describe(Alert a) => switch (a.type) {
-        'price_up' => 'Au9999 价格 ≥ ${a.target.toStringAsFixed(2)} 元/g',
-        'price_down' => 'Au9999 价格 ≤ ${a.target.toStringAsFixed(2)} 元/g',
+        'price_up' => '${kindLabel(a.kind)} 价格 ≥ ${a.target.toStringAsFixed(2)} 元/g',
+        'price_down' => '${kindLabel(a.kind)} 价格 ≤ ${a.target.toStringAsFixed(2)} 元/g',
         'profit_target' => '收益 ≥ ${a.target.toStringAsFixed(0)} 元',
         _ => '未知提醒',
       };

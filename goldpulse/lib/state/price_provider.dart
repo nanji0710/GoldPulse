@@ -95,7 +95,9 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
               plugin: notifications,
               price: fresh.price,
               assetValue: assetValue,
-              totalCost: totalCost);
+              totalCost: totalCost,
+              kind: 'au9999',
+              checkProfitTarget: true);
         } catch (_) {
           // 告警判定失败（如通知/DB 异常）不影响行情轮询。
         }
@@ -123,6 +125,9 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final dao = ref.watch(priceDaoProvider);
   final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
+  final holdingDao = ref.watch(holdingDaoProvider);
+  final alertDao = ref.watch(alertDaoProvider);
+  final notifications = ref.watch(notificationsPluginProvider);
   GoldPrice? last = await dao.latest('CZB-JCJ');
   debugPrint('[金脉行情] 积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
@@ -134,6 +139,26 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
         debugPrint('[金脉行情] 积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
         await dao.insert(fresh);
         last = fresh;
+        // 前台告警判定：仅判定 'accumulation' 品种的价格提醒；
+        // 收益提醒由 Au9999 轮询统一判定（checkProfitTarget: false 避免重复通知）。
+        try {
+          var assetValue = 0.0;
+          var totalCost = 0.0;
+          for (final h in await holdingDao.list()) {
+            assetValue += fresh.price * h.amount;
+            totalCost += h.totalCost;
+          }
+          await runAlertChecks(
+              dao: alertDao,
+              plugin: notifications,
+              price: fresh.price,
+              assetValue: assetValue,
+              totalCost: totalCost,
+              kind: 'accumulation',
+              checkProfitTarget: false);
+        } catch (_) {
+          // 告警判定失败不影响行情轮询。
+        }
       }
     } catch (_) {
       // 拉取失败保留缓存继续轮询。
@@ -155,6 +180,9 @@ final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final dao = ref.watch(priceDaoProvider);
   final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
+  final holdingDao = ref.watch(holdingDaoProvider);
+  final alertDao = ref.watch(alertDaoProvider);
+  final notifications = ref.watch(notificationsPluginProvider);
   GoldPrice? last = await dao.latest('ICBC-JCJ');
   debugPrint('[金脉行情] 工商积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
@@ -166,6 +194,26 @@ final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
         debugPrint('[金脉行情] 工商积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
         await dao.insert(fresh);
         last = fresh;
+        // 前台告警判定：仅判定 'icbc' 品种的价格提醒；
+        // 收益提醒由 Au9999 轮询统一判定（checkProfitTarget: false 避免重复通知）。
+        try {
+          var assetValue = 0.0;
+          var totalCost = 0.0;
+          for (final h in await holdingDao.list()) {
+            assetValue += fresh.price * h.amount;
+            totalCost += h.totalCost;
+          }
+          await runAlertChecks(
+              dao: alertDao,
+              plugin: notifications,
+              price: fresh.price,
+              assetValue: assetValue,
+              totalCost: totalCost,
+              kind: 'icbc',
+              checkProfitTarget: false);
+        } catch (_) {
+          // 告警判定失败不影响行情轮询。
+        }
       }
     } catch (_) {
       // 拉取失败保留缓存继续轮询。

@@ -33,4 +33,12 @@ void main() {
     expect(AlertService.describe(const Alert(type: 'price_up', target: 800, enable: true)), 'Au9999 价格 ≥ 800.00 元/g');
     expect(AlertService.describe(const Alert(type: 'profit_target', target: 400000, enable: true)), '收益 ≥ 400000 元');
   });
+  test('描述文案带品种名（kind 前缀）', () {
+    expect(AlertService.describe(const Alert(type: 'price_up', kind: 'au9999', target: 800, enable: true)), 'Au9999 价格 ≥ 800.00 元/g');
+    expect(AlertService.describe(const Alert(type: 'price_up', kind: 'accumulation', target: 800, enable: true)), '浙商积存金 价格 ≥ 800.00 元/g');
+    expect(AlertService.describe(const Alert(type: 'price_up', kind: 'icbc', target: 800, enable: true)), '工商积存金 价格 ≥ 800.00 元/g');
+    expect(AlertService.describe(const Alert(type: 'price_down', kind: 'accumulation', target: 700, enable: true)), '浙商积存金 价格 ≤ 700.00 元/g');
+    // profit_target 不区分品种：即便 kind 非默认也不带品种前缀。
+    expect(AlertService.describe(const Alert(type: 'profit_target', kind: 'accumulation', target: 400000, enable: true)), '收益 ≥ 400000 元');
+  });
 }

@@ -9,7 +9,9 @@ class AppDatabase {
   /// （Task 9：getGoldPrice 统一行情源返回日线字段，持久化供历史统计使用）。
   /// v3：holding 表新增 bought_cost（累计买入总成本）——卖出扣成本后 total_cost 缩减，
   /// 用独立字段追踪累计投入，保证累计收益恒等式不变。
-  static const _version = 3;
+  /// v4：alert 表新增 kind（提醒目标品种：'au9999'|'accumulation'|'icbc'，默认 'au9999'）。
+  /// 存量提醒默认 Au9999，与旧行为一致；price_up/price_down 按品种判定。
+  static const _version = 4;
   static DatabaseFactory databaseFactory = databaseFactorySqflitePlugin;
   static Database? _db;
 
@@ -68,6 +70,7 @@ class AppDatabase {
       CREATE TABLE alert(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'au9999',
         target REAL NOT NULL,
         enable INTEGER NOT NULL DEFAULT 0,
         trigger_count INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +93,10 @@ class AppDatabase {
     if (oldV < 3) {
       await db.execute('ALTER TABLE holding ADD COLUMN bought_cost REAL NOT NULL DEFAULT 0');
       await db.execute('UPDATE holding SET bought_cost = total_cost');
+    }
+    // v3 → v4：alert 新增 kind（目标品种）。存量提醒默认 Au9999，与旧行为一致。
+    if (oldV < 4) {
+      await db.execute("ALTER TABLE alert ADD COLUMN kind TEXT NOT NULL DEFAULT 'au9999'");
     }
   }
 }

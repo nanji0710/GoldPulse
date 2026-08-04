@@ -7,7 +7,8 @@ import 'alert_service.dart';
 import 'price_api.dart';
 
 /// 后台提醒检查：拉 Au9999 最新价 → 对启用的价格/收益提醒判定 → 命中发通知。
-/// 供 WorkManager background isolate 调用；与前台共用 [AlertService.matches]，
+/// 后台只拉 Au9999 行情：价格提醒仅判定 'au9999' 品种（其余品种跳过），
+/// 收益提醒不区分品种照常判定。与前台共用 [AlertService.matches]，
 /// 保证前后台判定语义一致。
 ///
 /// [showNotification] 抽成回调（而非直接依赖 FlutterLocalNotificationsPlugin），
@@ -32,6 +33,8 @@ Future<void> runBackgroundAlertCheck({
 
     final alerts = await alertDao.list();
     for (final a in alerts) {
+      // 后台仅拉 Au9999 价：价格提醒只判定 Au9999 品种；收益提醒不区分品种。
+      if (a.type != 'profit_target' && a.kind != 'au9999') continue;
       if (AlertService.matches(a,
           price: price.price, assetValue: assetValue, totalCost: totalCost)) {
         await showNotification('金脉提醒', AlertService.describe(a));

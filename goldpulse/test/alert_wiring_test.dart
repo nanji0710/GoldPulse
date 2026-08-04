@@ -63,6 +63,19 @@ class _ThrowingApi extends PriceApi {
   }
 }
 
+/// 仅首轮返回新价的假积存金行情源：让 accumulation 轮询恰好跑一次判定。
+class _AccOnceApi extends PriceApi {
+  _AccOnceApi() : super(dio: Dio());
+  int calls = 0;
+  @override
+  Future<GoldPrice?> fetchAccumulationPriceWithFallback() async {
+    calls++;
+    if (calls > 1) return null;
+    return GoldPrice(code: 'CZB-JCJ', price: 820, change: 5, percent: 0.6, preClose: 815,
+        time: DateTime.now().millisecondsSinceEpoch);
+  }
+}
+
 void main() {
   setUpAll(setUpTestDatabase); // 独立 FFI 数据库目录，避免并行 isolate 锁竞争
   setUp(() async {
@@ -112,5 +125,63 @@ void main() {
 
     expect(api.calls, greaterThanOrEqualTo(2)); // 首轮成功，其后多次抛异常
     expect(container.read(priceProvider).hasError, isFalse); // 流未被异常打死
+  });
+
+  test('品种过滤：accumulation 提醒不在 au9999 判定中触发，在 accumulation 判定中触发', () async {
+    final plugin = _FakeNotifications();
+    final dao = AlertDao();
+    await dao.insert(Alert(type: 'price_up', kind: 'accumulation', target: 800, enable: true));
+    await dao.insert(Alert(type: 'price_down', kind: 'au9999', target: 700, enable: true)); // 不命中
+
+    // Au9999 判定：accumulation 品种提醒被过滤，不触发。
+    await runAlertChecks(dao: dao, plugin: plugin, price: 805, assetValue: 0, totalCost: 0, kind: 'au9999');
+    expect(plugin.notifications, isEmpty);
+
+    // accumulation 判定：命中 accumulation 品种提醒。
+    await runAlertChecks(dao: dao, plugin: plugin, price: 805, assetValue: 0, totalCost: 0, kind: 'accumulation');
+    expect(plugin.notifications, hasLength(1));
+    expect(plugin.notifications.single.$1, '金脉提醒');
+  });
+
+  test('profit_target 不区分品种：仅在 Au9999 轮询（checkProfitTarget=true）触发一次', () async {
+    final plugin = _FakeNotifications();
+    final dao = AlertDao();
+    await dao.insert(Alert(type: 'profit_target', target: 1000, enable: true));
+
+    // icbc/accumulation 轮询 checkProfitTarget=false：不重复触发收益提醒。
+    await runAlertChecks(dao: dao, plugin: plugin, price: 850, assetValue: 9000, totalCost: 7500,
+        kind: 'icbc', checkProfitTarget: false);
+    expect(plugin.notifications, isEmpty);
+
+    // Au9999 轮询 checkProfitTarget=true：触发收益提醒。
+    await runAlertChecks(dao: dao, plugin: plugin, price: 850, assetValue: 9000, totalCost: 7500,
+        kind: 'au9999');
+    expect(plugin.notifications, hasLength(1));
+    expect(plugin.notifications.single.$2, '收益 ≥ 1000 元');
+  });
+
+  test('accumulation 轮询触发同品种价格提醒并带品种文案', () async {
+    final plugin = _FakeNotifications();
+    final api = _AccOnceApi();
+    await AlertDao().insert(Alert(type: 'price_up', kind: 'accumulation', target: 800, enable: true));
+    await AlertDao().insert(Alert(type: 'price_up', kind: 'au9999', target: 800, enable: true)); // 品种不符，不触发
+    await HoldingDao().insert(
+        Holding(name: '浙商积存金', kind: 'accumulation', amount: 100, totalCost: 70000, createdAt: 1));
+
+    final container = ProviderContainer(overrides: [
+      priceApiProvider.overrideWithValue(api),
+      notificationsPluginProvider.overrideWithValue(plugin),
+      isTradingNowProvider.overrideWithValue(() => true),
+      refreshIntervalProvider.overrideWith((ref) => Future.value(const Duration(milliseconds: 5))),
+    ]);
+    final sub = container.listen(accumulationPriceProvider, (_, _) {});
+    addTearDown(container.dispose);
+    addTearDown(sub.close);
+
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(api.calls, greaterThanOrEqualTo(1));
+    expect(plugin.notifications, hasLength(1)); // 仅 accumulation 品种提醒命中
+    expect(plugin.notifications.single.$2, '浙商积存金 价格 ≥ 800.00 元/g');
   });
 }

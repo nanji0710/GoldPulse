@@ -114,6 +114,8 @@ class _AlertTile extends ConsumerWidget {
       child: ListTile(
         leading: _typeIcon(alert.type),
         title: Text(AlertService.describe(alert)),
+        // 副标题显示目标品种名（收益提醒不区分品种，不显示）。
+        subtitle: alert.type == 'profit_target' ? null : Text(AlertService.kindLabel(alert.kind)),
         // 保留原 SwitchListTile 的点按整行切换开关的交互；trailing 增删删除入口。
         onTap: () => toggle(!alert.enable),
         trailing: Row(
@@ -148,7 +150,13 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
     'price_down': '价格下跌',
     'profit_target': '收益目标',
   };
+  static const _kindLabels = {
+    'au9999': 'Au9999',
+    'accumulation': '浙商积存金',
+    'icbc': '工商积存金',
+  };
   String _type = 'price_up';
+  String _kind = 'au9999';
   final _targetController = TextEditingController();
   String? _targetError;
 
@@ -164,7 +172,7 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
       setState(() => _targetError = '请输入有效的目标值');
       return;
     }
-    final alert = Alert(type: _type, target: target, enable: true);
+    final alert = Alert(type: _type, kind: _kind, target: target, enable: true);
     await ref.read(saveAlertProvider(alert).future);
     if (mounted) Navigator.pop(context);
   }
@@ -195,6 +203,18 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
                 .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                 .toList(),
             onChanged: (v) => setState(() => _type = v ?? _type),
+          ),
+          const SizedBox(height: 12),
+          // 品种选择：profit_target 不区分品种，禁用下拉避免误导。
+          DropdownButtonFormField<String>(
+            initialValue: _kind,
+            decoration: const InputDecoration(labelText: '品种'),
+            items: _kindLabels.entries
+                .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                .toList(),
+            onChanged: _type == 'profit_target'
+                ? null
+                : (v) => setState(() => _kind = v ?? _kind),
           ),
           const SizedBox(height: 12),
           TextField(

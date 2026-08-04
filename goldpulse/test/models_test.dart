@@ -38,4 +38,12 @@ void main() {
     expect(back.enable, true);
     expect(back.id, 3);
   });
+  test('Alert kind 往返 + 默认 au9999', () {
+    final a = Alert(type: 'price_up', kind: 'accumulation', target: 800, enable: true);
+    final back = Alert.fromMap(a.toMap()..['id'] = 3);
+    expect(back.kind, 'accumulation');
+    // 默认品种 Au9999；旧行（无 kind 列）fromMap 回退默认。
+    expect(Alert(type: 'price_up', target: 800, enable: true).kind, 'au9999');
+    expect(Alert.fromMap({'id': 1, 'type': 'price_up', 'target': 800.0, 'enable': 1}).kind, 'au9999');
+  });
 }

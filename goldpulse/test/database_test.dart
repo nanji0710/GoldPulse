@@ -46,7 +46,8 @@ void main() {
             time INTEGER NOT NULL,
             UNIQUE(code, time)
           )''');
-        // 真实 v1 库含 holding 表（无 bought_cost 列）；v3 迁移也会 ALTER 它
+        // 真实 v1 库含 holding/trade_record/alert 表（无 bought_cost/kind 列）；
+        // v3 迁移 ALTER holding，v4 迁移 ALTER alert。
         await db.execute('''
           CREATE TABLE holding(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +56,25 @@ void main() {
             amount REAL NOT NULL,
             total_cost REAL NOT NULL,
             created_at INTEGER NOT NULL
+          )''');
+        await db.execute('''
+          CREATE TABLE trade_record(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            holding_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            price REAL NOT NULL,
+            fee REAL NOT NULL,
+            time INTEGER NOT NULL
+          )''');
+        await db.execute('''
+          CREATE TABLE alert(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            target REAL NOT NULL,
+            enable INTEGER NOT NULL DEFAULT 0,
+            trigger_count INTEGER NOT NULL DEFAULT 0,
+            last_triggered INTEGER NOT NULL DEFAULT 0
           )''');
       },
     ));
@@ -145,6 +165,75 @@ void main() {
     // 存量行回填：bought_cost = total_cost = 78000
     final rows = await db.query('holding');
     expect(rows.single['bought_cost'], 78000);
+  });
+  test('v3→v4 迁移：alert ALTER 新增 kind，存量行默认 au9999', () async {
+    // 手动构造一个 user_version=3 的旧库（alert 无 kind 列）并插入旧数据，
+    // 然后由 AppDatabase 以 version=4 重开 → 触发 _onUpgrade 的 ALTER。
+    final factory = AppDatabase.databaseFactory;
+    final dir = await factory.getDatabasesPath();
+    final path = join(dir, 'goldpulse.db');
+    final old = await factory.openDatabase(path, options: OpenDatabaseOptions(
+      version: 3,
+      onCreate: (db, _) async {
+        // v3 完整 schema：gold_price 含日线列、holding 含 bought_cost、alert 无 kind。
+        await db.execute('''
+          CREATE TABLE gold_price(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL,
+            price REAL NOT NULL,
+            change REAL NOT NULL,
+            percent REAL NOT NULL,
+            pre_close REAL NOT NULL,
+            time INTEGER NOT NULL,
+            open_price REAL NOT NULL DEFAULT 0,
+            high_price REAL NOT NULL DEFAULT 0,
+            low_price REAL NOT NULL DEFAULT 0,
+            UNIQUE(code, time)
+          )''');
+        await db.execute('''
+          CREATE TABLE holding(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            amount REAL NOT NULL,
+            total_cost REAL NOT NULL,
+            bought_cost REAL NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+          )''');
+        await db.execute('''
+          CREATE TABLE trade_record(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            holding_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            price REAL NOT NULL,
+            fee REAL NOT NULL,
+            time INTEGER NOT NULL
+          )''');
+        await db.execute('''
+          CREATE TABLE alert(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            target REAL NOT NULL,
+            enable INTEGER NOT NULL DEFAULT 0,
+            trigger_count INTEGER NOT NULL DEFAULT 0,
+            last_triggered INTEGER NOT NULL DEFAULT 0
+          )''');
+      },
+    ));
+    await old.insert('alert', {
+      'type': 'price_up', 'target': 800.0, 'enable': 1,
+    });
+    await old.close();
+
+    final db = await AppDatabase.database; // 触发 onUpgrade(3→4)
+    final cols = (await db.rawQuery('PRAGMA table_info(alert)'))
+        .map((c) => c['name'])
+        .toSet();
+    expect(cols, contains('kind'));
+    // 存量提醒读回：kind 被 DEFAULT 'au9999' 填充。
+    final rows = await db.query('alert');
+    expect(rows.single['kind'], 'au9999');
   });
   test('holding CRUD', () async {
     final dao = HoldingDao();

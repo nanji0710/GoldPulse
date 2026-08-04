@@ -34,6 +34,10 @@ final checkAlertsProvider = FutureProvider.family<void, ({double price, double a
         totalCost: ctx.totalCost));
 
 /// 告警判定核心逻辑：遍历启用提醒，命中即通知并 recordTrigger。
+/// [kind]：当前行情品种。price_up/price_down 只判定与该品种相同的提醒（其余跳过）；
+/// 传 null 表示不按品种过滤。profit_target 不区分品种，始终用传入的聚合
+/// assetValue−totalCost 判定，但仅在 Au9999 轮询（[checkProfitTarget]=true）判一次，
+/// 避免三个品种轮询对同一收益提醒重复通知。
 /// 抽成独立函数以便行情轮询在 async* 长驻循环中直接调用——
 /// 长驻循环内不能 read Provider ref（流因依赖解析而重建后，残留协程会崩在已销毁元素上）。
 Future<void> runAlertChecks({
@@ -42,8 +46,15 @@ Future<void> runAlertChecks({
   required double price,
   required double assetValue,
   required double totalCost,
+  String? kind,
+  bool checkProfitTarget = true,
 }) async {
   for (final a in await dao.list()) {
+    if (a.type == 'profit_target') {
+      if (!checkProfitTarget) continue;
+    } else if (kind != null && a.kind != kind) {
+      continue;
+    }
     if (AlertService.matches(a, price: price, assetValue: assetValue, totalCost: totalCost)) {
       await AlertService.showNotification(plugin, '金脉提醒', AlertService.describe(a));
       await dao.recordTrigger(a.id);
