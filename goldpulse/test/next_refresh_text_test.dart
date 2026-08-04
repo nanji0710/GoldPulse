@@ -27,6 +27,13 @@ void main() {
     );
   });
 
+  test('正常模式按配置间隔显示秒（10 秒快速刷新）', () {
+    expect(
+      nextRefreshFreqText(retrying: false, configured: const Duration(seconds: 10)),
+      '每 10 秒刷新',
+    );
+  });
+
   test('正常模式（2 分钟）绝不显示失败文案（回归：误报 bug）', () {
     expect(
       nextRefreshFreqText(retrying: false, configured: const Duration(minutes: 2)),

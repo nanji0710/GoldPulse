@@ -16,6 +16,9 @@ import '../state/price_provider.dart';
 
 /// 刷新频率选项：秒数 → 文案。默认 2 分钟。
 const Map<int, String> _refreshOptions = {
+  1: '1 秒',
+  5: '5 秒',
+  10: '10 秒',
   30: '30 秒',
   60: '1 分钟',
   120: '2 分钟',
@@ -98,7 +101,13 @@ Widget _groupCard(List<Widget> children) {
   );
 }
 
-String _label(Duration d) => _refreshOptions[d.inSeconds] ?? '${d.inSeconds} 秒';
+String _label(Duration d) {
+  final seconds = d.inSeconds;
+  final cached = _refreshOptions[seconds];
+  if (cached != null) return cached;
+  if (seconds < 60) return '$seconds 秒';
+  return '${(seconds / 60).round()} 分钟';
+}
 
 /// 底部弹窗选择刷新间隔，持久化到 shared_preferences 并 invalidate 行情轮询。
 Future<void> _pickRefreshRate(BuildContext context, WidgetRef ref) async {
