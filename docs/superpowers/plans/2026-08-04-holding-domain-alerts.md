@@ -599,3 +599,74 @@ test('加权平均成本法：买卖成本变化', () {
 ```bash
 git commit -m "feat: 买卖成本加权平均法（卖出扣成本、均价不变，boughtCost 追踪累计投入）"
 ```
+
+
+---
+
+### Task 7: 提醒删除 + 收益目标判定修正（用户反馈）
+
+**问题**：① 提醒条目只有开关、无法删除；② 收益目标 `profit_target` 判定用**总资产**（assetValue ≥ 40）而非**收益**，资产价值恒大导致 <40 也触发；文案显示「黄金资产 ≥ 40」。
+
+**Files:**
+- Modify: `goldpulse/lib/services/alert_service.dart`（matches / describe）
+- Modify: `goldpulse/lib/state/alert_provider.dart`（新增 `deleteAlertProvider`）
+- Modify: `goldpulse/lib/pages/alert_page.dart`（_AlertTile 加删除入口）
+- Test: `goldpulse/test/alert_service_test.dart`、`goldpulse/test/alert_wiring_test.dart`
+
+**改动：**
+1. `AlertService.matches`：`profit_target` 改为 `(assetValue - totalCost) >= a.target`（收益达标才触发）。
+2. `AlertService.describe`：`profit_target` 文案改为 `'收益 ≥ ${a.target.toStringAsFixed(0)} 元'`。
+3. `alert_provider.dart` 新增 `deleteAlertProvider = FutureProvider.family<void, int>`（alertDao.delete + invalidate alertsProvider）。
+4. `alert_page.dart` `_AlertTile`：trailing 加删除 IconButton（红，Icons.delete_outline）+ 确认 AlertDialog；开关保留。
+5. 添加弹层 profit_target 输入提示改「收益目标（元）」。
+6. 测试：matches 收益判定正反例；describe 文案；删除动作（tap 删除 → 确认 → 列表移除）。
+
+### Task 8: 提醒品种选择（Au9999/浙商/工商，用户反馈）
+
+**问题**：创建提醒无法选品种，默认 Au9999；价格提醒判定只用 Au9999 价。
+
+**Files:**
+- Modify: `goldpulse/lib/models/alert.dart`（新增 `kind` 字段，默认 'au9999'）
+- Modify: `goldpulse/lib/database/app_database.dart`（DB v3→v4：alerts 表加 `kind TEXT NOT NULL DEFAULT 'au9999'`）
+- Modify: `goldpulse/lib/state/alert_provider.dart`（runAlertChecks 加 `kind` 参数 + 按品种过滤）
+- Modify: `goldpulse/lib/pages/alert_page.dart`（添加弹层加品种下拉；_AlertTile 副标题显示品种）
+- Modify: `goldpulse/lib/state/price_provider.dart`（三个行情轮询调用 runAlertChecks 时传各自 kind）
+- Modify: `goldpulse/lib/services/background_alert.dart`（后台检查按品种）
+- Test: `goldpulse/test/alert_wiring_test.dart`、`goldpulse/test/database_test.dart`（迁移）
+
+**改动：**
+1. `Alert` 新增 `kind`（'au9999'|'accumulation'|'icbc'，默认 'au9999'）；toMap/fromMap 增列 `kind`；DB v3→v4 迁移 `ALTER TABLE alerts ADD COLUMN kind TEXT NOT NULL DEFAULT 'au9999'`（_onCreate 同步）。
+2. `runAlertChecks` 增加 `String? kind` 参数：`price_up`/`price_down` 仅当 `a.kind == kind` 时判定；`profit_target` 不区分品种（用传入的聚合 assetValue−totalCost）。
+3. `priceProvider`（Au9999）调用 `runAlertChecks(kind: 'au9999')`；`accumulationPriceProvider` → kind 'accumulation'；`icbcPriceProvider` → kind 'icbc'。profit_target 只在 Au9999 轮询判一次（避免重复通知）。
+4. 添加弹层：新增「品种」下拉（Au9999 / 浙商积存金 / 工商积存金）；选择 profit_target 时品种下拉禁用（不区分品种）。
+5. `AlertService.describe`：price_up/down 显示品种名（如「浙商积存金 价格 ≥ X 元/g」）。
+6. `_AlertTile` 副标题显示品种名。
+7. 后台 `runBackgroundAlertCheck` 拉各品种价并按品种判定 Au9999 提醒 + profit_target。
+
+### Task 9: 行情页折线图最高/最低点金额标签（用户反馈）
+
+**Files:**
+- Modify: `goldpulse/lib/widgets/chart.dart`（PriceLineChart 加最高/最低点标签）
+- Test: 新增 `goldpulse/test/chart_label_test.dart`
+
+**改动：**
+1. `PriceLineChart`：识别 spots 中最高（maxY）与最低（minY）的数据点；用 `FlDotData(getDotPainter: ...)` 在最高/最低点绘制强调圆点 + 金额文本标签（fmtPrice，2 位小数，金/白色，置于点上方或下方避免重叠）。
+2. 标签文案：最高点显示如 `886.10`、最低点 `878.51`。
+3. 不影响既有坐标轴/触摸气泡/渐变面积；1 个点时标签不重叠。
+4. 测试：构造含明确最高/最低的 spots，断言标签文本渲染（pump 后 find.text）。
+
+
+### Task 10: 追加买入对话框合并（克重 + 买入均价同框可编辑，用户反馈）
+
+**问题**：追加买入用两个连续 `promptNumber`（先克重、再价格），用户反馈"只能写克重，不能写买入时均价"——体验混乱。改为**单个对话框同时输入克重与买入单价**，单价默认当前行情价且可编辑。
+
+**Files:**
+- Modify: `goldpulse/lib/widgets/number_dialogs.dart`（新增 `promptBuy`）
+- Modify: `goldpulse/lib/pages/holding_detail_page.dart`（_buy 改用 promptBuy）
+- Modify: `goldpulse/lib/widgets/holding_list_tile.dart`（追加买入改用 promptBuy）
+- Test: `goldpulse/test/holding_detail_test.dart`、`goldpulse/test/holding_actions_test.dart`
+
+**改动：**
+1. `number_dialogs.dart` 新增 `Future<({double amount, double price})?> promptBuy(BuildContext, {String? defaultPrice})`：单个 AlertDialog，含「买入克重 (g)」与「买入价格 (元/g)」两个 TextField（价格默认 defaultPrice，可编辑）；两字段校验 >0 且克重≤当前持仓上限时返回 record，否则内联报错（复用 _promptSell 的双输入模式）。
+2. `holding_detail_page._buy` 与 `holding_list_tile` 追加买入改用 `promptBuy(defaultPrice: 该品种现价)`；成功后 recordTradeProvider(buy)。
+3. 测试：追加买入对话框渲染双字段；输入克重+价格后持仓克重/均价正确更新。
