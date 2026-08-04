@@ -16,8 +16,9 @@
 2. 主题 token 一律取自 `lib/constants/app_theme.dart`（黑金 v2）；红涨绿跌；数字 `FontFeature.tabularFigures()`；触控目标 ≥44px。
 3. 收益三口径公式不得改动：持仓=现价×克重−总成本；今日=(现价−昨收)×克重；累计=Σ卖出净得+现价×克重−总成本。
 4. 同品种多笔持仓聚合：总克重=Σ克重；总成本=ΣtotalCost；均价=总成本÷总克重（加权）。
-5. 既有测试不得破坏：`flutter analyze` 零告警；`flutter test` 全绿（基线 115）。
-6. Windows 环境：每次 Bash 调用 flutter 前先执行
+5. **克数一律显示到小数点后 4 位**（`fmtGrams` 已改 `#,##0.0000`）；金额/价格仍 2 位。
+6. 既有测试不得破坏：`flutter analyze` 零告警；`flutter test` 全绿（基线 115）。
+7. Windows 环境：每次 Bash 调用 flutter 前先执行
    `export PATH="$(printf '%s' "$PATH" | tail -n 1)"`，并设
    `FLUTTER_STORAGE_BASE_URL=https://mirror.nju.edu.cn/flutter`、
    `PUB_HOSTED_URL=https://pub.flutter-io.cn`（release 构建另加
