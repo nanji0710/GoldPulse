@@ -9,9 +9,11 @@ import 'package:goldpulse/state/holding_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
 import 'package:goldpulse/utils/formatters.dart';
 import '../services/calculator.dart';
+import 'number_dialogs.dart';
 
 class HoldingListTile extends ConsumerWidget {
   final Holding holding;
+
   /// 点击进入持仓详情（Task 4 接线 HoldingDetailPage；本任务仅加参数不接线）。
   final VoidCallback? onTap;
   const HoldingListTile({super.key, required this.holding, this.onTap});
@@ -21,13 +23,16 @@ class HoldingListTile extends ConsumerWidget {
     // 按持仓类型选对应行情流：工商积存金 → icbc、浙商积存金 → accumulation、
     // 其余（Au9999）→ Au9999 主行情。valueOrNull 保证 AsyncError 安全回落 null。
     final price = ref
-        .watch(holding.kind == 'icbc'
-            ? icbcPriceProvider
-            : holding.kind == 'accumulation'
-                ? accumulationPriceProvider
-                : priceProvider)
+        .watch(
+          holding.kind == 'icbc'
+              ? icbcPriceProvider
+              : holding.kind == 'accumulation'
+              ? accumulationPriceProvider
+              : priceProvider,
+        )
         .valueOrNull;
-    final sells = ref.watch(holdingTradesProvider(holding.id)).valueOrNull ??
+    final sells =
+        ref.watch(holdingTradesProvider(holding.id)).valueOrNull ??
         const <TradeRecord>[];
     final avgCost = Calculator.avgCost(holding.totalCost, holding.amount);
 
@@ -36,9 +41,16 @@ class HoldingListTile extends ConsumerWidget {
     double? today;
     double? cumulative;
     if (price != null) {
-      floating =
-          Calculator.floatingProfit(price.price, holding.amount, holding.totalCost);
-      today = Calculator.todayProfit(price.price, price.preClose, holding.amount);
+      floating = Calculator.floatingProfit(
+        price.price,
+        holding.amount,
+        holding.totalCost,
+      );
+      today = Calculator.todayProfit(
+        price.price,
+        price.preClose,
+        holding.amount,
+      );
       cumulative = Calculator.cumulativeProfit(
         currentPrice: price.price,
         amount: holding.amount,
@@ -61,19 +73,23 @@ class HoldingListTile extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(holding.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontSize: 14)),
+                    child: Text(
+                      holding.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 14),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _ProfitPill(value: floating),
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right,
-                      size: 18, color: AppTheme.textSecondary),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: AppTheme.textSecondary,
+                  ),
                 ],
               ),
               const SizedBox(height: 2),
@@ -93,11 +109,14 @@ class HoldingListTile extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                        child: _MetricColumn(label: '持仓收益', value: floating)),
+                      child: _MetricColumn(label: '持仓收益', value: floating),
+                    ),
                     Expanded(
-                        child: _MetricColumn(label: '今日盈亏', value: today)),
+                      child: _MetricColumn(label: '今日盈亏', value: today),
+                    ),
                     Expanded(
-                        child: _MetricColumn(label: '累计收益', value: cumulative)),
+                      child: _MetricColumn(label: '累计收益', value: cumulative),
+                    ),
                   ],
                 ),
               ),
@@ -112,36 +131,57 @@ class HoldingListTile extends ConsumerWidget {
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet_outlined),
-            title: Text(holding.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('${fmtGrams(holding.amount)}g'),
+        // 追加买入后动作项增多，超过底部弹层最大高度（屏幕 9/16），
+        // 包一层滚动避免 RenderFlex 溢出。
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: Text(
+                  holding.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text('${fmtGrams(holding.amount)}g'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('修改克重'),
+                onTap: () => Navigator.pop(ctx, 'edit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline),
+                title: const Text('追加买入'),
+                onTap: () => Navigator.pop(ctx, 'buy'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_chart),
+                title: const Text('加记生息'),
+                onTap: () => Navigator.pop(ctx, 'interest'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.sell_outlined),
+                title: const Text('记一笔卖出'),
+                onTap: () => Navigator.pop(ctx, 'sell'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('删除持仓'),
+                onTap: () => Navigator.pop(ctx, 'delete'),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('修改克重'),
-              onTap: () => Navigator.pop(ctx, 'edit')),
-          ListTile(
-              leading: const Icon(Icons.add_chart),
-              title: const Text('加记生息'),
-              onTap: () => Navigator.pop(ctx, 'interest')),
-          ListTile(
-              leading: const Icon(Icons.sell_outlined),
-              title: const Text('记一笔卖出'),
-              onTap: () => Navigator.pop(ctx, 'sell')),
-          ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('删除持仓'),
-              onTap: () => Navigator.pop(ctx, 'delete')),
-        ]),
+        ),
       ),
     );
     if (action == null || !context.mounted) return;
     switch (action) {
       case 'edit':
         await _editAmount(context, ref);
+      case 'buy':
+        await _buy(context, ref);
       case 'interest':
         await _addInterest(context, ref);
       case 'sell':
@@ -151,11 +191,50 @@ class HoldingListTile extends ConsumerWidget {
     }
   }
 
+  /// 追加买入：type=buy，克重 + 成交价（默认取该持仓品种现价），手续费 0。
+  Future<void> _buy(BuildContext context, WidgetRef ref) async {
+    final provider = holding.kind == 'icbc'
+        ? icbcPriceProvider
+        : holding.kind == 'accumulation'
+        ? accumulationPriceProvider
+        : priceProvider;
+    final current = ref.read(provider).value?.price;
+    final amount = await promptNumber(context, '追加买入', hint: '克重（如 50）');
+    if (amount == null || !context.mounted) return;
+    final price = await promptNumber(
+      context,
+      '买入价格',
+      hint: '成交价（元/g）',
+      initial: current?.toString(),
+    );
+    if (price == null || !context.mounted) return;
+    try {
+      await ref.read(
+        recordTradeProvider(
+          TradeRecord(
+            holdingId: holding.id,
+            type: 'buy',
+            amount: amount,
+            price: price,
+            fee: 0,
+            time: DateTime.now().millisecondsSinceEpoch,
+          ),
+        ).future,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack(context, '追加买入失败：$e');
+    }
+  }
+
   /// 修改克重：直接覆盖持仓克重（用于修正录入误差）。
   Future<void> _editAmount(BuildContext context, WidgetRef ref) async {
-    final value = await _promptNumber(context, '修改克重',
-        hint: '当前 ${fmtGrams(holding.amount)}g',
-        initial: holding.amount.toString()); // 纯数字预填，避免千分位分隔符
+    final value = await promptNumber(
+      context,
+      '修改克重',
+      hint: '当前 ${fmtGrams(holding.amount)}g',
+      initial: holding.amount.toString(),
+    ); // 纯数字预填，避免千分位分隔符
     if (value == null || !context.mounted) return;
     await ref.read(holdingDaoProvider).updateAmount(holding.id, value);
     ref.invalidate(holdingsProvider);
@@ -163,17 +242,21 @@ class HoldingListTile extends ConsumerWidget {
 
   /// 加记生息：type=interest，price=0，只增克重摊薄成本。
   Future<void> _addInterest(BuildContext context, WidgetRef ref) async {
-    final value = await _promptNumber(context, '加记生息', hint: '克重（如 0.08）');
+    final value = await promptNumber(context, '加记生息', hint: '克重（如 0.08）');
     if (value == null || !context.mounted) return;
     try {
-      await ref.read(recordTradeProvider(TradeRecord(
-        holdingId: holding.id,
-        type: 'interest',
-        amount: value,
-        price: 0,
-        fee: 0,
-        time: DateTime.now().millisecondsSinceEpoch,
-      )).future);
+      await ref.read(
+        recordTradeProvider(
+          TradeRecord(
+            holdingId: holding.id,
+            type: 'interest',
+            amount: value,
+            price: 0,
+            fee: 0,
+            time: DateTime.now().millisecondsSinceEpoch,
+          ),
+        ).future,
+      );
     } catch (e) {
       if (!context.mounted) return;
       _showSnack(context, '生息录入失败：$e');
@@ -184,19 +267,25 @@ class HoldingListTile extends ConsumerWidget {
   /// 超卖（克重 > 当前持仓）在对话框内联拦截，不产生交易记录。
   Future<void> _sell(BuildContext context, WidgetRef ref) async {
     final current = ref.read(priceProvider).value?.price;
-    final result = await _promptSell(context,
-        defaultPrice: current?.toString(),
-        maxAmount: holding.amount);
+    final result = await promptSell(
+      context,
+      defaultPrice: current?.toString(),
+      maxAmount: holding.amount,
+    );
     if (result == null || !context.mounted) return;
     try {
-      await ref.read(recordTradeProvider(TradeRecord(
-        holdingId: holding.id,
-        type: 'sell',
-        amount: result.amount,
-        price: result.price,
-        fee: Calculator.sellFee(result.amount, result.price),
-        time: DateTime.now().millisecondsSinceEpoch,
-      )).future);
+      await ref.read(
+        recordTradeProvider(
+          TradeRecord(
+            holdingId: holding.id,
+            type: 'sell',
+            amount: result.amount,
+            price: result.price,
+            fee: Calculator.sellFee(result.amount, result.price),
+            time: DateTime.now().millisecondsSinceEpoch,
+          ),
+        ).future,
+      );
     } catch (e) {
       if (!context.mounted) return;
       _showSnack(context, '卖出失败：$e');
@@ -211,8 +300,14 @@ class HoldingListTile extends ConsumerWidget {
         title: const Text('删除持仓'),
         content: Text('确定删除「${holding.name}」及其全部交易记录？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
         ],
       ),
     );
@@ -222,7 +317,9 @@ class HoldingListTile extends ConsumerWidget {
   }
 
   void _showSnack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -270,8 +367,9 @@ class _MetricColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = value;
     final color = v == null ? AppTheme.textSecondary : arrowColor(v);
-    final text =
-        v == null ? '--' : '${v >= 0 ? '+' : '-'}${fmtAmount(v.abs())} 元';
+    final text = v == null
+        ? '--'
+        : '${v >= 0 ? '+' : '-'}${fmtAmount(v.abs())} 元';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -282,109 +380,13 @@ class _MetricColumn extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontSize: 14,
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+            fontSize: 14,
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );
   }
-}
-
-/// 解析数字输入：容忍千分位分隔符与首尾空白（如 "1,000.50"）。
-double? _parseNum(String s) => double.tryParse(s.replaceAll(',', '').trim());
-
-/// 单数字输入对话框；返回 null 表示取消。
-Future<double?> _promptNumber(BuildContext context, String title,
-    {String hint = '', String? initial}) {
-  final controller = TextEditingController(text: initial ?? '');
-  return showDialog<double>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(hintText: hint),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-        FilledButton(
-          onPressed: () {
-            final v = _parseNum(controller.text);
-            if (v != null && v > 0) Navigator.pop(ctx, v);
-          },
-          child: const Text('确定'),
-        ),
-      ],
-    ),
-  );
-}
-
-/// 卖出对话框：克重 + 价格（默认当前行情价）。
-/// [maxAmount] 当前持仓克重；超卖时内联报错且不关闭对话框。
-Future<({double amount, double price})?> _promptSell(BuildContext context,
-    {String? defaultPrice, required double maxAmount}) {
-  final amountC = TextEditingController();
-  final priceC = TextEditingController(text: defaultPrice);
-  return showDialog<({double amount, double price})>(
-    context: context,
-    builder: (ctx) {
-      String? errorText;
-      return StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          void revalidate() {
-            final amount = _parseNum(amountC.text);
-            setDialogState(() {
-              errorText =
-                  amount != null && amount > maxAmount ? '超过当前持仓 ${fmtGrams(maxAmount)}g' : null;
-            });
-          }
-
-          return AlertDialog(
-            title: const Text('记一笔卖出'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                controller: amountC,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: '卖出克重',
-                  hintText: '例如 50',
-                  errorText: errorText,
-                ),
-                onChanged: (_) => revalidate(),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: priceC,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: '卖出价格（元/g）'),
-              ),
-            ]),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-              FilledButton(
-                onPressed: () {
-                  final amount = _parseNum(amountC.text);
-                  final price = _parseNum(priceC.text);
-                  if (amount != null &&
-                      amount > 0 &&
-                      amount <= maxAmount &&
-                      price != null &&
-                      price > 0) {
-                    Navigator.pop(ctx, (amount: amount, price: price));
-                  }
-                },
-                child: const Text('确定'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
 }

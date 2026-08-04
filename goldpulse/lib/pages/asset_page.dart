@@ -9,6 +9,7 @@ import 'package:goldpulse/state/holding_provider.dart';
 import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/empty_state.dart';
 import 'package:goldpulse/widgets/holding_list_tile.dart';
+import 'holding_detail_page.dart';
 
 class AssetPage extends ConsumerWidget {
   const AssetPage({super.key});
@@ -43,7 +44,16 @@ class AssetPage extends ConsumerWidget {
                   _SummaryCard(total: total),
                   const SizedBox(height: 12),
                 ],
-                for (final h in holdings) HoldingListTile(holding: h),
+                for (final h in holdings)
+                  HoldingListTile(
+                    holding: h,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HoldingDetailPage(holdingId: h.id),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );
@@ -55,7 +65,8 @@ class AssetPage extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: AppTheme.card,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _AddHoldingSheet(ref: ref),
     );
   }
@@ -83,21 +94,29 @@ class _SummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('持仓汇总',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontSize: 15)),
+                child: Text(
+                  '持仓汇总',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontSize: 15),
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text('${total.holdingCount} 个品种',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppTheme.gold, fontWeight: FontWeight.w600)),
+                child: Text(
+                  '${total.holdingCount} 个品种',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppTheme.gold,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
@@ -106,14 +125,20 @@ class _SummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: _SummaryMetric(
-                      label: '持仓收益', value: total.floatingProfit)),
+                child: _SummaryMetric(
+                  label: '持仓收益',
+                  value: total.floatingProfit,
+                ),
+              ),
               Expanded(
-                  child:
-                      _SummaryMetric(label: '今日盈亏', value: total.todayProfit)),
+                child: _SummaryMetric(label: '今日盈亏', value: total.todayProfit),
+              ),
               Expanded(
-                  child: _SummaryMetric(
-                      label: '累计收益', value: total.cumulativeProfit)),
+                child: _SummaryMetric(
+                  label: '累计收益',
+                  value: total.cumulativeProfit,
+                ),
+              ),
             ],
           ),
         ],
@@ -141,11 +166,11 @@ class _SummaryMetric extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontSize: 14,
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+            fontSize: 14,
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );
@@ -194,8 +219,9 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('保存失败：$e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败：$e')));
     }
   }
 
@@ -203,7 +229,8 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 20, right: 20,
+        left: 20,
+        right: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
       ),
       child: Form(
@@ -228,7 +255,10 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: '名称', hintText: '如：浙商积存金'),
+              decoration: const InputDecoration(
+                labelText: '名称',
+                hintText: '如：浙商积存金',
+              ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -244,8 +274,12 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               decoration: const InputDecoration(labelText: '克重 (g)'),
               validator: (v) {
                 final d = double.tryParse(v?.trim() ?? '');
@@ -256,8 +290,12 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _costCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               decoration: const InputDecoration(labelText: '买入单价 (元/g)'),
               validator: (v) {
                 final d = double.tryParse(v?.trim() ?? '');

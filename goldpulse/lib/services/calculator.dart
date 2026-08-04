@@ -20,7 +20,11 @@ class Calculator {
   static double sellFee(double sellAmount, double sellPrice) =>
       sellAmount * sellPrice * sellFeeRate;
 
-  static double sellNetProfit(double sellAmount, double sellPrice, double avgCostPrice) {
+  static double sellNetProfit(
+    double sellAmount,
+    double sellPrice,
+    double avgCostPrice,
+  ) {
     final gross = sellAmount * (sellPrice - avgCostPrice);
     return gross - sellFee(sellAmount, sellPrice);
   }
@@ -43,8 +47,7 @@ class Calculator {
     required double amount,
     required double totalCost,
     required Iterable<TradeRecord> sellTrades,
-  }) =>
-      sellNetProceeds(sellTrades) + currentPrice * amount - totalCost;
+  }) => sellNetProceeds(sellTrades) + currentPrice * amount - totalCost;
 
   /// 应用一笔交易到持仓状态，返回新的克重与总成本。
   /// [amount] 当前克重，[totalCost] 累计买入总成本。
@@ -56,7 +59,10 @@ class Calculator {
   }) {
     switch (record.type) {
       case 'buy':
-        return (amount: amount + record.amount, totalCost: totalCost + record.amount * record.price);
+        return (
+          amount: amount + record.amount,
+          totalCost: totalCost + record.amount * record.price,
+        );
       case 'interest':
         return (amount: amount + record.amount, totalCost: totalCost);
       case 'sell':
@@ -66,6 +72,36 @@ class Calculator {
         return (amount: amount - record.amount, totalCost: totalCost);
       default:
         throw ArgumentError('未知交易类型: ${record.type}');
+    }
+  }
+
+  /// 反向应用一笔交易（删除交易时回滚持仓状态）。
+  /// buy → 减克重减成本；sell → 加克重；interest → 减克重。
+  /// 回滚后克重/成本为负时返回 null（禁止删除）。
+  static ({double amount, double totalCost})? reverseTrade({
+    required double amount,
+    required double totalCost,
+    required TradeRecord record,
+  }) {
+    switch (record.type) {
+      case 'buy':
+        if (amount < record.amount ||
+            totalCost < record.amount * record.price) {
+          return null;
+        }
+        return (
+          amount: amount - record.amount,
+          totalCost: totalCost - record.amount * record.price,
+        );
+      case 'interest':
+        if (amount < record.amount) {
+          return null;
+        }
+        return (amount: amount - record.amount, totalCost: totalCost);
+      case 'sell':
+        return (amount: amount + record.amount, totalCost: totalCost);
+      default:
+        return (amount: amount, totalCost: totalCost);
     }
   }
 }
