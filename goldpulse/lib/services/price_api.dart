@@ -33,7 +33,13 @@ class PriceApi {
           queryParameters: {'productSku': _zheShangSku},
           options: Options(receiveTimeout: const Duration(seconds: 8), sendTimeout: const Duration(seconds: 8)));
       var data = res.data;
-      if (data is String) data = jsonDecode(data);
+      if (data is String) {
+        try {
+          data = jsonDecode(data); // dio 某些情况返回字符串
+        } on FormatException {
+          throw ApiException('响应非合法 JSON');
+        }
+      }
       if (data is! Map<String, dynamic>) throw ApiException('响应结构非法');
       return parseJdGoldPrice(data, fallbackCode: 'CZB-JCJ');
     } on DioException catch (e) {
@@ -66,7 +72,8 @@ class PriceApi {
   /// 新浪行情解析（备用源）。
   /// 新浪 gold T+D 行情格式：var hq_str="1,沪金T+D,开,昨收,最新,..."
   /// 索引：0=市场 1=名称 2=开盘 3=昨收 4=最新（字段序号随品种可能变化，上线时需实测校准）
-  static GoldPrice? parseSinaGoldPrice(String raw, {String code = 'SGE-Au(T+D)'}) {
+  static GoldPrice? parseSinaGoldPrice(String raw,
+      {String code = 'SGE-Au(T+D)', String source = '新浪'}) {
     final m = RegExp(r'"([^"]*)"').firstMatch(raw);
     if (m == null) return null;
     final parts = m.group(1)!.split(',');
@@ -77,41 +84,93 @@ class PriceApi {
     return GoldPrice(
         code: code, price: price, change: price - preClose,
         percent: preClose == 0 ? 0 : (price - preClose) / preClose * 100,
-        preClose: preClose, time: DateTime.now().millisecondsSinceEpoch);
-  }
-
-  /// 降级链：主源（京东）→ 备用（东方财富）→ 兜底（新浪）→ null（调用方回落本地缓存）。
-  Future<GoldPrice?> fetchGoldPriceWithFallback(String code) async {
-    try { return await fetchGoldPrice(code); } on ApiException { /* fall */ }
-    try {
-      final res = await dio.get(_eastmoneyUrl,
-          queryParameters: {
-            'secid': '118.AU9999',
-            'fields': 'f43,f44,f45,f46,f57,f58,f60,f170',
-          },
-          options: Options(receiveTimeout: const Duration(seconds: 8)));
-      if (res.data is! Map<String, dynamic>) return null;
-      return parseEastmoneyGoldPrice(res.data as Map<String, dynamic>, code: code);
-    } on DioException { /* fall */ }
-    try {
-      final res = await dio.get('https://hq.sinajs.cn/list=shau9999',
-          options: Options(
-            // dio 5.x 的 Options 无 connectTimeout，沿用主源的 receiveTimeout。
-            receiveTimeout: const Duration(seconds: 8),
-            // 新浪接口校验 Referer，缺失时可能返回空响应。
-            headers: {'Referer': 'https://finance.sina.com.cn/'},
-          ));
-      return parseSinaGoldPrice(res.data.toString(), code: code);
-    } on DioException { return null; }
+        preClose: preClose, time: DateTime.now().millisecondsSinceEpoch,
+        source: source);
   }
 
   static const _eastmoneyUrl = 'https://push2.eastmoney.com/api/qt/stock/get';
+
+  /// 东方财富 Au9999（上金所）备用源请求（积存金降级时也复用它，作为参考价）。
+  Future<GoldPrice?> _eastmoneyPrice(
+      {required String code, String source = '东方财富'}) async {
+    final res = await dio.get(_eastmoneyUrl,
+        queryParameters: {
+          'secid': '118.AU9999',
+          'fields': 'f43,f44,f45,f46,f57,f58,f60,f170',
+        },
+        options: Options(receiveTimeout: const Duration(seconds: 8)));
+    if (res.data is! Map<String, dynamic>) return null;
+    return parseEastmoneyGoldPrice(res.data as Map<String, dynamic>,
+        code: code, source: source);
+  }
+
+  /// 新浪 Au9999 备用源请求。
+  Future<GoldPrice?> _sinaPrice(
+      {required String code, String source = '新浪'}) async {
+    final res = await dio.get('https://hq.sinajs.cn/list=shau9999',
+        options: Options(
+          // dio 5.x 的 Options 无 connectTimeout，沿用主源的 receiveTimeout。
+          receiveTimeout: const Duration(seconds: 8),
+          // 新浪接口校验 Referer，缺失时可能返回空响应。
+          headers: {'Referer': 'https://finance.sina.com.cn/'},
+        ));
+    return parseSinaGoldPrice(res.data.toString(), code: code, source: source);
+  }
+
+  /// Au9999 降级链：京东 → 东方财富 → 新浪 → null（调用方回落本地缓存）。
+  /// 注意：京东返回合法 JSON 但解析不出价格（返回 null）同样继续降级，
+  /// 不能提前返回 —— 否则京东一次异常响应就切断整条降级链。
+  Future<GoldPrice?> fetchGoldPriceWithFallback(String code) async {
+    try {
+      final gp = await fetchGoldPrice(code);
+      if (gp != null) return gp;
+    } on ApiException {
+      // 京东不可用 → 东方财富。
+    }
+    try {
+      final gp = await _eastmoneyPrice(code: code);
+      if (gp != null) return gp;
+    } on DioException {
+      // 东方财富不可用 → 新浪。
+    }
+    try {
+      final gp = await _sinaPrice(code: code);
+      if (gp != null) return gp;
+    } on DioException {
+      // 全部备用源不可用。
+    }
+    return null;
+  }
+
+  /// 浙商积存金降级链：京东积存金 → 东方财富 Au9999（参考价）→ 新浪 → null。
+  /// 京东免费接口不稳定，若不给积存金配备用源，京东一挂该卡片就永远"加载中"。
+  Future<GoldPrice?> fetchAccumulationPriceWithFallback() async {
+    try {
+      final gp = await fetchAccumulationPrice();
+      if (gp != null) return gp;
+    } on ApiException {
+      // 京东不可用 → 东方财富（Au9999 参考价，积存金通常紧跟 Au9999 波动）。
+    }
+    try {
+      final gp = await _eastmoneyPrice(code: 'CZB-JCJ', source: 'Au9999 参考');
+      if (gp != null) return gp;
+    } on DioException {
+      // 东方财富不可用 → 新浪。
+    }
+    try {
+      final gp = await _sinaPrice(code: 'CZB-JCJ', source: '新浪');
+      if (gp != null) return gp;
+    } on DioException {
+      // 全部备用源不可用。
+    }
+    return null;
+  }
 
   /// 东方财富 Au9999（上金所）解析。实测（2026-08-04）：
   ///   data.f43=最新价（×100 缩放，88380→883.80），f60=昨收（×100），
   ///   f57=代码，f58=名称，f170=涨跌幅（×100）。
   static GoldPrice? parseEastmoneyGoldPrice(Map<String, dynamic> json,
-      {String code = 'SGE-Au(T+D)'}) {
+      {String code = 'SGE-Au(T+D)', String source = '东方财富'}) {
     final data = json['data'];
     if (data is! Map) return null;
     final price = _toDouble(data['f43']);
@@ -127,6 +186,7 @@ class PriceApi {
       percent: pre == 0 ? 0 : (p - pre) / pre * 100,
       preClose: pre,
       time: DateTime.now().millisecondsSinceEpoch,
+      source: source,
     );
   }
 
@@ -135,7 +195,8 @@ class PriceApi {
   ///   Au9999:  resultData.data.{lastPrice, preClose, raise, raisePercent, uniqueCode}
   ///   积存金:  resultData.datas.{price, yesterdayPrice, upAndDownAmt, upAndDownRate}
   /// 旧参考项目假设 resultData.quote.{...}，与实测不符，已按实测修正。
-  static GoldPrice? parseJdGoldPrice(Map<String, dynamic> json, {String fallbackCode = 'SGE-Au(T+D)'}) {
+  static GoldPrice? parseJdGoldPrice(Map<String, dynamic> json,
+      {String fallbackCode = 'SGE-Au(T+D)', String source = '京东'}) {
     final rd = json['resultData'];
     if (rd is! Map) return null;
     final data = rd['data'] ?? rd['datas'] ?? rd['quote'] ?? rd;
@@ -153,6 +214,7 @@ class PriceApi {
       percent: pre == 0 ? 0 : (p - pre) / pre * 100,
       preClose: pre,
       time: DateTime.now().millisecondsSinceEpoch,
+      source: source,
     );
   }
 

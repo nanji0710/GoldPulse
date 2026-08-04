@@ -1,4 +1,5 @@
 // test/price_api_test.dart
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -30,6 +31,21 @@ class _TextBodyAdapter implements HttpClientAdapter {
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     return ResponseBody.fromString(body, 200,
         headers: const {'content-type': ['text/html']});
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// 按调用顺序依次返回预设响应体的适配器（用于测试降级链逐源切换）。
+class _SequentialAdapter implements HttpClientAdapter {
+  final List<ResponseBody> bodies;
+  int _index = 0;
+  _SequentialAdapter(this.bodies);
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    return bodies[_index++];
   }
 
   @override
@@ -136,5 +152,75 @@ void main() {
     expect(gp, isNotNull);
     expect(gp!.price, closeTo(776.70, 0.001));   // 最新价 = 索引 4
     expect(gp.preClose, closeTo(779.00, 0.001)); // 昨收 = 索引 3
+  });
+
+  test('解析出的价格带数据源标签', () {
+    final gp = PriceApi.parseJdGoldPrice(sample);
+    expect(gp!.source, '京东');
+    final em = PriceApi.parseEastmoneyGoldPrice(
+        {'data': {'f43': 88380, 'f60': 88304}});
+    expect(em!.source, '东方财富');
+    final sina = PriceApi.parseSinaGoldPrice('var x="1,金,1,2,3"');
+    expect(sina!.source, '新浪');
+  });
+
+  test('京东返回合法 JSON 但缺价 → 继续降级到东方财富（不再提前返回 null）', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    dio.httpClientAdapter = _SequentialAdapter([
+      // 京东：合法 JSON 但 data 无价格字段 → 解析为 null。
+      ResponseBody.fromString(
+          jsonEncode({'resultData': {'data': {}}}), 200,
+          headers: {'content-type': ['application/json']}),
+      // 东方财富：正常数据。
+      ResponseBody.fromString(
+          jsonEncode({'data': {'f43': 88380, 'f60': 88304, 'f57': 'AU9999'}}),
+          200,
+          headers: {'content-type': ['application/json']}),
+    ]);
+    final api = PriceApi(dio: dio);
+    final gp = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(883.80, 0.001));
+    expect(gp.source, '东方财富');
+  });
+
+  test('积存金：京东网络失败 → 降级到东方财富 Au9999 参考价', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    dio.httpClientAdapter = _SequentialAdapter([
+      ResponseBody.fromString('<html>Bad Gateway</html>', 502,
+          headers: {'content-type': ['text/html']}),
+      ResponseBody.fromString(
+          jsonEncode({'data': {'f43': 88380, 'f60': 88304}}), 200,
+          headers: {'content-type': ['application/json']}),
+    ]);
+    final api = PriceApi(dio: dio);
+    final gp = await api.fetchAccumulationPriceWithFallback();
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(883.80, 0.001));
+    expect(gp.code, 'CZB-JCJ');
+    expect(gp.source, 'Au9999 参考');
+  });
+
+  test('积存金：京东返回缺价 JSON → 继续降级而非返回 null', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    dio.httpClientAdapter = _SequentialAdapter([
+      ResponseBody.fromString(
+          jsonEncode({'resultData': {'datas': {}}}), 200,
+          headers: {'content-type': ['application/json']}),
+      ResponseBody.fromString(
+          jsonEncode({'data': {'f43': 88380, 'f60': 88304}}), 200,
+          headers: {'content-type': ['application/json']}),
+    ]);
+    final api = PriceApi(dio: dio);
+    final gp = await api.fetchAccumulationPriceWithFallback();
+    expect(gp, isNotNull);
+    expect(gp!.source, 'Au9999 参考');
+  });
+
+  test('全部源都失败 → 返回 null（调用方回落本地缓存）', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    dio.httpClientAdapter = _FailingAdapter();
+    final api = PriceApi(dio: dio);
+    expect(await api.fetchAccumulationPriceWithFallback(), isNull);
   });
 }

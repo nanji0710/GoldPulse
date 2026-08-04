@@ -22,15 +22,28 @@ final priceDaoProvider = Provider((ref) => PriceDao());
 /// 从而在不依赖系统时钟的前提下驱动轮询测试。
 final isTradingNowProvider = Provider<bool Function()>((ref) => () => MarketHours.isTrading(DateTime.now()));
 
-/// 下次刷新时刻（秒级倒计时展示用）。两个轮询器每次调度后写入。
-class NextRefreshNotifier extends Notifier<DateTime?> {
+/// 下次刷新时刻 + 本次实际调度间隔 + 是否处于快速重试（无缓存且拉取失败）。
+/// 两个轮询器每次调度后写入，供首页秒级倒计时与文案展示。
+class NextRefreshNotifier
+    extends Notifier<({DateTime at, Duration delay, bool retrying})?> {
   @override
-  DateTime? build() => null;
-  void set(DateTime t) => state = t;
+  ({DateTime at, Duration delay, bool retrying})? build() => null;
+  void set(DateTime at, Duration delay, {bool retrying = false}) =>
+      state = (at: at, delay: delay, retrying: retrying);
 }
 
-final nextRefreshProvider =
-    NotifierProvider<NextRefreshNotifier, DateTime?>(NextRefreshNotifier.new);
+final nextRefreshProvider = NotifierProvider<NextRefreshNotifier,
+    ({DateTime at, Duration delay, bool retrying})?>(NextRefreshNotifier.new);
+
+/// 底部刷新频率文案：仅真实进入快速重试（无缓存且拉取失败，30 秒一轮）
+/// 时提示"获取失败"，正常模式一律显示用户配置的刷新间隔。
+/// 抽出为纯函数便于单元测试。
+String nextRefreshFreqText(
+    {required bool retrying, required Duration configured}) {
+  if (retrying) return '行情获取失败，每 30 秒自动重试';
+  if (configured.inMinutes > 0) return '每 ${configured.inMinutes} 分钟刷新';
+  return '每 ${configured.inSeconds} 秒刷新';
+}
 
 /// 行情刷新间隔偏好（秒），由设置页写入，默认 120 秒（2 分钟）。
 const refreshIntervalPrefKey = 'refreshIntervalSeconds';
@@ -57,10 +70,12 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
   yield last;
+  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
-    // 交易中才轮询（省电）；但若无任何缓存数据（新装/清库），休市时段也拉取一次，
-    // 避免新用户休市时段无限"行情加载中"。
-    if (isTradingNow() || last == null) {
+    // 交易中才轮询（省电）；但流首次启动、以及无任何缓存数据（新装/清库）时，
+    // 休市时段也拉取一次，避免新用户休市时段无限"行情加载中"。
+    if (firstRun || isTradingNow() || last == null) {
+      firstRun = false;
       try {
         final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
         if (fresh != null) {
@@ -95,7 +110,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
     // 尚无任何数据时（新装/清库/首拉失败）用 30s 快速重试，直到首次成功；
     // 已有缓存后恢复配置间隔（省电）。
     final delay = last == null ? const Duration(seconds: 30) : interval;
-    nextRefresh.set(DateTime.now().add(delay));
+    nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
     await Future.delayed(delay);
   }
 });
@@ -111,10 +126,13 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('CZB-JCJ');
   yield last;
+  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
-    if (isTradingNow() || last == null) {
+    if (firstRun || isTradingNow() || last == null) {
+      firstRun = false;
       try {
-        final fresh = await api.fetchAccumulationPrice();
+        // 降级链：京东积存金 → 东方财富 Au9999 参考价 → 新浪。
+        final fresh = await api.fetchAccumulationPriceWithFallback();
         if (fresh != null) {
           await dao.insert(fresh);
           last = fresh;
@@ -125,7 +143,7 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
     }
     yield last;
     final delay = last == null ? const Duration(seconds: 30) : interval;
-    nextRefresh.set(DateTime.now().add(delay));
+    nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
     await Future.delayed(delay);
   }
 });

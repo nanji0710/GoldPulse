@@ -10,6 +10,7 @@ class GoldCard extends StatelessWidget {
   final double change;
   final double percent;
   final int time; // 行情时间戳（毫秒），用于显示更新时间
+  final String source; // 数据源标签（京东/东方财富/Au9999 参考/缓存），空则不显示
   final String? statusLabel; // 如 "交易中" / "午间休市"
   final String? statusHint;  // 如 "13:30 恢复交易"
   final bool? isTrading;
@@ -21,6 +22,7 @@ class GoldCard extends StatelessWidget {
     required this.change,
     required this.percent,
     required this.time,
+    this.source = '',
     this.statusLabel,
     this.statusHint,
     this.isTrading,
@@ -113,9 +115,12 @@ class GoldCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // 数据更新时间（来自行情拉取时间戳），便于确认数据新鲜度
-          Text('更新于 ${_timeLabel(DateTime.fromMillisecondsSinceEpoch(time))}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11)),
+          // 数据更新时间（来自行情拉取时间戳）+ 数据源标签，便于确认新鲜度与来源
+          Text(
+            '更新于 ${_timeLabel(DateTime.fromMillisecondsSinceEpoch(time))}'
+            '${source.isEmpty ? '' : ' · 数据源：$source'}',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11),
+          ),
         ]),
       ),
     );

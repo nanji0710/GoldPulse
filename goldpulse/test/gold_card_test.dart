@@ -31,4 +31,18 @@ void main() {
     final text = tester.widget<Text>(find.textContaining('%')).data!;
     expect(text.contains('(+0.00%)'), isTrue);
   });
+
+  testWidgets('显示数据源标签', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 1.23, percent: 0.16, time: 1000, source: '东方财富')),
+    ));
+    expect(find.textContaining('数据源：东方财富'), findsOneWidget);
+  });
+
+  testWidgets('未传数据源时不显示标签', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 1.23, percent: 0.16, time: 1000)),
+    ));
+    expect(find.textContaining('数据源'), findsNothing);
+  });
 }
