@@ -32,6 +32,16 @@ StreamProvider<GoldPrice?> goldPriceProviderOf(GoldType type) =>
       GoldType.icbc => icbcPriceProvider,
     };
 
+/// 日历周期起点（公开以便测试）：1日=今日 00:00；7日=今日起前 6 天；30日=今日起前 29 天。
+DateTime periodStartOf(String period, DateTime now) {
+  final today0 = DateTime(now.year, now.month, now.day);
+  return switch (period) {
+    '1日' => today0,
+    '7日' => today0.subtract(const Duration(days: 6)),
+    _ => today0.subtract(const Duration(days: 29)),
+  };
+}
+
 /// 区间统计：区间最高 / 区间最低 / 区间涨跌（区间首尾差%）。
 /// rows 来自 dao.recent（time DESC，新→旧）；不足 2 条返回 null（无法计算涨跌）。
 /// 涨跌基数为区间首端（最早）价格，正向为涨（红）、负向为跌（绿）。
@@ -68,9 +78,12 @@ class _MarketPageState extends ConsumerState<MarketPage> {
   bool _loading = true;
   int _loadSeq = 0; // 防竞态：过期请求结果直接丢弃
 
-  int _limitFor() => switch (_period) { '1日' => 240, '7日' => 240, _ => 720 };
-  // K 线聚合组大小：各周期都聚合成约 30 根 K 线，保证图形密度一致。
-  int _groupSizeFor() => (_limitFor() / 30).ceil();
+  /// 折线图最多采样点数（数据更密时均匀抽稀，避免 1s/5s 轮询一整天数万点）。
+  static const _maxChartPoints = 240;
+
+  /// 日历周期起点：1日=今日 00:00；7日=今日起前 6 天；30日=今日起前 29 天。
+  static DateTime _periodStart(String period, DateTime now) =>
+      periodStartOf(period, now);
 
   @override
   void initState() {
@@ -78,16 +91,17 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     _load();
   }
 
-  /// 按当前周期 + 当前类型从历史库加载走势数据。
+  /// 按当前周期（日历窗口）+ 当前类型从历史库加载走势数据。
   /// 首屏（_rows == null）期间失败按空列表处理，展示空态而非报错。
   Future<void> _load() async {
     final seq = ++_loadSeq;
     final code = _type.code; // 锁定本次请求的类型代码：切换类型后旧请求由 seq 丢弃
+    final since = _periodStart(_period, DateTime.now()).millisecondsSinceEpoch;
     List<GoldPrice> rows;
     try {
       rows = await ref
           .read(priceDaoProvider)
-          .recent(code, limit: _limitFor())
+          .recentSince(code, sinceMillis: since)
           // 本地库读取不应超过数秒；异常卡死时降级为空列表（显示空态而非永久转圈）。
           .timeout(const Duration(seconds: 5), onTimeout: () => const []);
     } catch (_) {
@@ -528,7 +542,7 @@ class _MarketPageState extends ConsumerState<MarketPage> {
         child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold),
       );
     }
-    final rows = _rows ?? const <GoldPrice>[];
+    final rows = _rows ?? const <GoldPrice>[]; // recentSince 已按时间升序（旧 → 新）
     if (rows.isEmpty) {
       return const EmptyState(
         icon: Icons.show_chart,
@@ -536,20 +550,28 @@ class _MarketPageState extends ConsumerState<MarketPage> {
         description: '行情轮询启动后自动积累数据',
       );
     }
-    final rowsAsc = rows.reversed.toList(); // 旧 → 新
     if (_showCandles) {
+      // K 线：整窗数据聚合为约 30 根，密度一致。
       return CandlestickChart(
         spots: CandlestickChart.aggregateBars(
-          prices: rowsAsc.map((e) => e.price).toList(),
-          groupSize: _groupSizeFor(),
+          prices: rows.map((e) => e.price).toList(),
+          groupSize: (rows.length / 30).ceil(),
         ),
       );
     }
+    // 折线：数据过密（如 1s/5s 轮询整天）时均匀抽稀到 _maxChartPoints 点。
+    final sampled = rows.length <= _maxChartPoints
+        ? rows
+        : [
+            for (var i = 0; i < rows.length;
+                i += (rows.length / _maxChartPoints).ceil())
+              rows[i]
+          ];
     return PriceLineChart(
-      spots: rowsAsc.indexed
+      spots: sampled.indexed
           .map((e) => FlSpot(e.$1.toDouble(), e.$2.price))
           .toList(),
-      times: rowsAsc
+      times: sampled
           .map((e) => DateTime.fromMillisecondsSinceEpoch(e.time))
           .toList(),
       timeFormatter: _period == '1日' ? _fmtHHmm : _fmtMonthDay,

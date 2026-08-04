@@ -17,6 +17,16 @@ class PriceDao {
     final rows = await db.query('gold_price', where: 'code = ?', whereArgs: [code], orderBy: 'time DESC', limit: limit);
     return rows.map(GoldPrice.fromMap).toList();
   }
+
+  /// 查询 [sinceMillis]（含）之后该品种的行情，按时间**升序**（旧 → 新）。
+  /// 供行情页按日历周期（1日/7日/30日）取窗口数据。
+  Future<List<GoldPrice>> recentSince(String code, {required int sinceMillis}) async {
+    final db = await _db;
+    final rows = await db.query('gold_price',
+        where: 'code = ? AND time >= ?', whereArgs: [code, sinceMillis],
+        orderBy: 'time ASC');
+    return rows.map(GoldPrice.fromMap).toList();
+  }
   Future<GoldPrice?> latest(String code) async {
     final list = await recent(code, limit: 1);
     return list.isEmpty ? null : list.first;

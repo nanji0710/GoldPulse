@@ -33,4 +33,17 @@ void main() {
     expect(shuffled.low, closeTo(desc.low, 0.001));
     expect(shuffled.changePct, closeTo(desc.changePct, 0.0001));
   });
+
+  test('periodStartOf：1日=今日 00:00', () {
+    final start = periodStartOf('1日', DateTime(2026, 8, 4, 15, 30));
+    expect(start, DateTime(2026, 8, 4));
+  });
+  test('periodStartOf：7日=今日起前 6 天', () {
+    final start = periodStartOf('7日', DateTime(2026, 8, 4, 9, 0));
+    expect(start, DateTime(2026, 7, 29));
+  });
+  test('periodStartOf：30日=今日起前 29 天', () {
+    final start = periodStartOf('30日', DateTime(2026, 8, 4, 9, 0));
+    expect(start, DateTime(2026, 7, 6));
+  });
 }

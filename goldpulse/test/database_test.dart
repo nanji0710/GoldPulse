@@ -26,6 +26,22 @@ void main() {
     await dao.insert(gp);
     expect(await dao.count(), 1);
   });
+  test('recentSince：按时间窗口过滤且时间升序', () async {
+    final dao = PriceDao();
+    GoldPrice at(int t, double p) => GoldPrice(
+        code: 'SGE-Au(T+D)', price: p, change: 0, percent: 0, preClose: 0, time: t);
+    await dao.insert(at(100, 780));
+    await dao.insert(at(200, 785));
+    await dao.insert(at(300, 790));
+    // since=150：只剩 time>=150 的行（200、300），升序。
+    final rows = await dao.recentSince('SGE-Au(T+D)', sinceMillis: 150);
+    expect(rows.map((r) => r.time).toList(), [200, 300]);
+    // 全量窗口
+    final all = await dao.recentSince('SGE-Au(T+D)', sinceMillis: 0);
+    expect(all.map((r) => r.time).toList(), [100, 200, 300]);
+    // 其他品种不受影响
+    expect(await dao.recentSince('CZB-JCJ', sinceMillis: 0), isEmpty);
+  });
   test('v1→v2 迁移：gold_price ALTER 新增日线列，旧行默认 0', () async {
     // 手动构造一个 user_version=1 的旧库（无日线列）并插入旧数据，
     // 然后由 AppDatabase 以 version=2 重开 → 触发 _onUpgrade 的 ALTER。

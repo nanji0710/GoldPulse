@@ -187,6 +187,7 @@ class _ExtremaDotPainter extends FlDotPainter {
     canvas.drawCircle(offsetInCanvas, _radius, Paint()..color = dotColor);
 
     // 金额标签：水平居中，最高点在上、最低点在下。
+    // 自适应：最高/最低点贴近图表左右/上下边缘时，把标签收进裁剪范围内，避免被裁掉。
     final tp = TextPainter(
       text: TextSpan(
         text: label,
@@ -202,11 +203,15 @@ class _ExtremaDotPainter extends FlDotPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    final dx = offsetInCanvas.dx - tp.width / 2;
-    final dy = above
-        ? offsetInCanvas.dy - _radius - _gap - tp.height
-        : offsetInCanvas.dy + _radius + _gap;
-    tp.paint(canvas, Offset(dx, dy));
+    final clip = canvas.getLocalClipBounds();
+    final maxDx = (clip.right - tp.width).clamp(clip.left, clip.right);
+    final maxDy = (clip.bottom - tp.height).clamp(clip.top, clip.bottom);
+    final dx = (offsetInCanvas.dx - tp.width / 2).clamp(clip.left, maxDx);
+    final dy = (above
+            ? offsetInCanvas.dy - _radius - _gap - tp.height
+            : offsetInCanvas.dy + _radius + _gap)
+        .clamp(clip.top, maxDy);
+    tp.paint(canvas, Offset(dx.toDouble(), dy.toDouble()));
   }
 
   @override

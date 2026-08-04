@@ -84,9 +84,11 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
         // 价格（price_up/price_down）与收益（profit_target，资产-成本）命中即本地通知。
         // 后台 isolate 抓取判定仍为未来细化（见 main.dart callbackDispatcher 注释）。
         try {
+          // 收益目标按本品种持仓利润判定：只统计同品种持仓（kind 过滤）。
           var assetValue = 0.0;
           var totalCost = 0.0;
           for (final h in await holdingDao.list()) {
+            if (h.kind != 'au9999') continue;
             assetValue += fresh.price * h.amount;
             totalCost += h.totalCost;
           }
@@ -96,8 +98,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
               price: fresh.price,
               assetValue: assetValue,
               totalCost: totalCost,
-              kind: 'au9999',
-              checkProfitTarget: true);
+              kind: 'au9999');
         } catch (_) {
           // 告警判定失败（如通知/DB 异常）不影响行情轮询。
         }
@@ -140,11 +141,12 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
         await dao.insert(fresh);
         last = fresh;
         // 前台告警判定：仅判定 'accumulation' 品种的价格提醒；
-        // 收益提醒由 Au9999 轮询统一判定（checkProfitTarget: false 避免重复通知）。
+        // 各品种轮询只判定同品种提醒（含收益目标，按本品种持仓利润）。
         try {
           var assetValue = 0.0;
           var totalCost = 0.0;
           for (final h in await holdingDao.list()) {
+            if (h.kind != 'accumulation') continue;
             assetValue += fresh.price * h.amount;
             totalCost += h.totalCost;
           }
@@ -154,8 +156,7 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
               price: fresh.price,
               assetValue: assetValue,
               totalCost: totalCost,
-              kind: 'accumulation',
-              checkProfitTarget: false);
+              kind: 'accumulation');
         } catch (_) {
           // 告警判定失败不影响行情轮询。
         }
@@ -195,11 +196,12 @@ final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
         await dao.insert(fresh);
         last = fresh;
         // 前台告警判定：仅判定 'icbc' 品种的价格提醒；
-        // 收益提醒由 Au9999 轮询统一判定（checkProfitTarget: false 避免重复通知）。
+        // 各品种轮询只判定同品种提醒（含收益目标，按本品种持仓利润）。
         try {
           var assetValue = 0.0;
           var totalCost = 0.0;
           for (final h in await holdingDao.list()) {
+            if (h.kind != 'icbc') continue;
             assetValue += fresh.price * h.amount;
             totalCost += h.totalCost;
           }
@@ -209,8 +211,7 @@ final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
               price: fresh.price,
               assetValue: assetValue,
               totalCost: totalCost,
-              kind: 'icbc',
-              checkProfitTarget: false);
+              kind: 'icbc');
         } catch (_) {
           // 告警判定失败不影响行情轮询。
         }

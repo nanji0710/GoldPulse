@@ -143,17 +143,17 @@ void main() {
     expect(plugin.notifications.single.$1, '金脉提醒');
   });
 
-  test('profit_target 不区分品种：仅在 Au9999 轮询（checkProfitTarget=true）触发一次', () async {
+  test('profit_target 按品种过滤：仅同品种轮询触发', () async {
     final plugin = _FakeNotifications();
     final dao = AlertDao();
-    await dao.insert(Alert(type: 'profit_target', target: 1000, enable: true));
+    await dao.insert(Alert(type: 'profit_target', kind: 'au9999', target: 1000, enable: true));
 
-    // icbc/accumulation 轮询 checkProfitTarget=false：不重复触发收益提醒。
+    // icbc 轮询：品种不符，不触发。
     await runAlertChecks(dao: dao, plugin: plugin, price: 850, assetValue: 9000, totalCost: 7500,
-        kind: 'icbc', checkProfitTarget: false);
+        kind: 'icbc');
     expect(plugin.notifications, isEmpty);
 
-    // Au9999 轮询 checkProfitTarget=true：触发收益提醒。
+    // Au9999 轮询：品种匹配，利润 9000−7500=1500 ≥ 1000 → 触发收益提醒。
     await runAlertChecks(dao: dao, plugin: plugin, price: 850, assetValue: 9000, totalCost: 7500,
         kind: 'au9999');
     expect(plugin.notifications, hasLength(1));

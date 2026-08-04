@@ -112,7 +112,47 @@ void main() {
       showNotification: notifier.call,
     );
 
-    expect(api.calls, 1);
+    expect(api.calls, 3); // 逐品种各拉一次（au9999/accumulation/icbc）
+    expect(notifier.notifications, isEmpty);
+  });
+
+  test('收益目标按所选品种持仓利润判定：仅同品种触发', () async {
+    final notifier = _RecordingNotifier();
+    final api = _FixedApi(fixedPrice(850));
+    // 浙商收益提醒：10g×850=8500 资产、成本 7500 → 收益 1000 达标。
+    await AlertDao().insert(Alert(type: 'profit_target', kind: 'accumulation', target: 1000, enable: true));
+    // 持仓：浙商（对应收益达标）与 Au9999（品种不符）。
+    await HoldingDao().insert(
+        Holding(name: '浙商', kind: 'accumulation', amount: 10, totalCost: 7500, createdAt: 1));
+    await HoldingDao().insert(
+        Holding(name: 'Au9999', kind: 'au9999', amount: 10, totalCost: 7500, createdAt: 2));
+
+    await runBackgroundAlertCheck(
+      api: api,
+      alertDao: AlertDao(),
+      holdingDao: HoldingDao(),
+      showNotification: notifier.call,
+    );
+
+    expect(notifier.notifications, hasLength(1)); // 仅浙商收益提醒命中
+    expect(notifier.notifications.single.$2, '收益 ≥ 1000 元');
+  });
+
+  test('收益目标品种不符不触发：Au9999 持仓对浙商收益提醒', () async {
+    final notifier = _RecordingNotifier();
+    final api = _FixedApi(fixedPrice(850));
+    // 浙商收益提醒 + 仅 Au9999 持仓（浙商持仓利润 0）。
+    await AlertDao().insert(Alert(type: 'profit_target', kind: 'accumulation', target: 1000, enable: true));
+    await HoldingDao().insert(
+        Holding(name: 'Au9999', kind: 'au9999', amount: 10, totalCost: 7500, createdAt: 1));
+
+    await runBackgroundAlertCheck(
+      api: api,
+      alertDao: AlertDao(),
+      holdingDao: HoldingDao(),
+      showNotification: notifier.call,
+    );
+
     expect(notifier.notifications, isEmpty);
   });
 }

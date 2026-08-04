@@ -205,16 +205,15 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
             onChanged: (v) => setState(() => _type = v ?? _type),
           ),
           const SizedBox(height: 12),
-          // 品种选择：profit_target 不区分品种，禁用下拉避免误导。
+          // 品种选择：所有类型（含收益目标）都可选择品种；
+          // 收益目标按所选品种的持仓利润判定（见 runAlertChecks）。
           DropdownButtonFormField<String>(
             initialValue: _kind,
             decoration: const InputDecoration(labelText: '品种'),
             items: _kindLabels.entries
                 .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                 .toList(),
-            onChanged: _type == 'profit_target'
-                ? null
-                : (v) => setState(() => _kind = v ?? _kind),
+            onChanged: (v) => setState(() => _kind = v ?? _kind),
           ),
           const SizedBox(height: 12),
           TextField(
