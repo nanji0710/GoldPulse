@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/models/holding.dart';
+import 'package:goldpulse/state/asset_provider.dart';
 import 'package:goldpulse/state/holding_provider.dart';
+import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/empty_state.dart';
 import 'package:goldpulse/widgets/holding_list_tile.dart';
 
@@ -13,6 +15,8 @@ class AssetPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final holdings = ref.watch(holdingsProvider).value ?? [];
+    // 全部持仓汇总：无持仓时 totalAssetSummaryProvider 为 null（走空态）。
+    final total = ref.watch(totalAssetSummaryProvider).value;
     return Scaffold(
       appBar: AppBar(
         title: const Text('资产'),
@@ -32,9 +36,15 @@ class AssetPage extends ConsumerWidget {
               actionLabel: '添加第一笔持仓',
               onAction: () => _showAddHoldingSheet(context, ref),
             )
-          : ListView.builder(
-              itemCount: holdings.length,
-              itemBuilder: (_, i) => HoldingListTile(holding: holdings[i]),
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              children: [
+                if (total != null) ...[
+                  _SummaryCard(total: total),
+                  const SizedBox(height: 12),
+                ],
+                for (final h in holdings) HoldingListTile(holding: h),
+              ],
             ),
     );
   }
@@ -47,6 +57,97 @@ class AssetPage extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _AddHoldingSheet(ref: ref),
+    );
+  }
+}
+
+/// 持仓汇总卡：标题 + 品种数 pill + 三口径收益等宽三列（红涨绿跌）。
+/// 紧凑布局，整体高度 ~85px，置于持仓列表顶部。
+class _SummaryCard extends StatelessWidget {
+  final TypeAssetSummary total;
+  const _SummaryCard({required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 标题行：持仓汇总 + 品种数 pill
+          Row(
+            children: [
+              Expanded(
+                child: Text('持仓汇总',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontSize: 15)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('${total.holdingCount} 个品种',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppTheme.gold, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 三口径等宽三列：持仓收益 / 今日盈亏 / 累计收益
+          Row(
+            children: [
+              Expanded(
+                  child: _SummaryMetric(
+                      label: '持仓收益', value: total.floatingProfit)),
+              Expanded(
+                  child:
+                      _SummaryMetric(label: '今日盈亏', value: total.todayProfit)),
+              Expanded(
+                  child: _SummaryMetric(
+                      label: '累计收益', value: total.cumulativeProfit)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 汇总三列指标：小标签 + 带符号金额（红涨绿跌，tabular 数字）。
+class _SummaryMetric extends StatelessWidget {
+  final String label;
+  final double value;
+  const _SummaryMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = value >= 0 ? AppTheme.up : AppTheme.down;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 3),
+        Text(
+          '${arrow(value)} ${fmtAmount(value.abs())} 元',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontSize: 14,
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+        ),
+      ],
     );
   }
 }

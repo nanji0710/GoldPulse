@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:goldpulse/models/gold_price.dart';
+import 'package:goldpulse/models/holding.dart';
 import 'package:goldpulse/pages/asset_page.dart';
 import 'package:goldpulse/pages/home_page.dart';
 import 'package:goldpulse/pages/market_page.dart';
 import 'package:goldpulse/pages/onboarding_page.dart';
 import 'package:goldpulse/state/asset_provider.dart';
+import 'package:goldpulse/state/holding_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
 
 // 用 override 注入固定行情（单一时刻，避免轮询死循环）
@@ -196,5 +198,52 @@ void main() {
     expect(find.text('浙商积存金'), findsOneWidget);
     expect(find.text('工商积存金'), findsOneWidget);
     expect(find.text('全部持仓'), findsOneWidget);
+  });
+
+  testWidgets('资产页顶部持仓汇总卡：标题 + 三口径收益标签', (tester) async {
+    // 加高视口确保列表首项（汇总卡）在首帧即渲染
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // 注入固定持仓（非空才渲染列表）与全部持仓汇总；行情轮询给空流避免真实 dio。
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        holdingsProvider.overrideWith((ref) async => const [
+              Holding(
+                  name: '浙商积存金',
+                  kind: 'accumulation',
+                  amount: 50,
+                  totalCost: 43500,
+                  createdAt: 0),
+            ]),
+        totalAssetSummaryProvider.overrideWith((ref) async =>
+            const TypeAssetSummary(
+              kind: 'all',
+              label: '全部持仓',
+              totalGrams: 50,
+              totalCost: 43500,
+              avgCost: 870,
+              currentPrice: null,
+              preClose: null,
+              floatingProfit: 600,
+              todayProfit: 18.5,
+              cumulativeProfit: -3.6,
+              holdingCount: 2,
+            )),
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: AssetPage()),
+    ));
+    await tester.pumpAndSettle();
+    // 汇总卡标题 + 品种数 pill
+    expect(find.text('持仓汇总'), findsOneWidget);
+    expect(find.text('2 个品种'), findsOneWidget);
+    // 三口径标签：汇总卡与持仓卡片各渲染一份，故用 findsWidgets
+    expect(find.text('持仓收益'), findsWidgets);
+    expect(find.text('今日盈亏'), findsWidgets);
+    expect(find.text('累计收益'), findsWidgets);
   });
 }

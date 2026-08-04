@@ -12,7 +12,9 @@ import '../services/calculator.dart';
 
 class HoldingListTile extends ConsumerWidget {
   final Holding holding;
-  const HoldingListTile({super.key, required this.holding});
+  /// 点击进入持仓详情（Task 4 接线 HoldingDetailPage；本任务仅加参数不接线）。
+  final VoidCallback? onTap;
+  const HoldingListTile({super.key, required this.holding, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,6 +50,7 @@ class HoldingListTile extends ConsumerWidget {
     return Card(
       color: AppTheme.card,
       child: InkWell(
+        onTap: onTap,
         onLongPress: () => _showActions(context, ref),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
