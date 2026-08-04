@@ -55,41 +55,45 @@ void main() {
   });
 
   testWidgets('行情页三类型切换：头卡价格随激活类型切换', (tester) async {
-    // Au9999 给固定实时价；浙商/工商无真实源 → 空流（AsyncData(null)），
+    // 默认品种为浙商（czb），浙商与 Au9999 各给固定实时价；工商无源 → 空流（AsyncData(null)），
     // 同时覆盖 Task7 评审指出的 AsyncData(null) 监听崩溃路径。
     await tester.pumpWidget(ProviderScope(
       overrides: [
         priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(
             GoldPrice(
                 code: 'Au9999', price: 780.20, change: 3.50, percent: 0.45, preClose: 776.70, time: 1))),
-        accumulationPriceProvider
-            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        accumulationPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(
+            GoldPrice(
+                code: 'CZB-JCJ', price: 881.00, change: 1.00, percent: 0.11, preClose: 880.00, time: 1))),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: MarketPage()),
     ));
     await tester.pumpAndSettle();
-    // 默认 Au9999：头卡显示实时价（区间统计空库为 '--'，不与价格文案冲突）
-    expect(find.text('780.20'), findsOneWidget);
+    // 默认浙商：头卡显示浙商实时价（区间统计空库为 '--'）
+    expect(find.text('881.00'), findsOneWidget);
 
-    await tester.tap(find.text('浙商积存金'));
-    await tester.pumpAndSettle();
-    expect(find.text('780.20'), findsNothing); // 浙商无实时价 → 头卡 '--'
-
-    await tester.tap(find.text('工商积存金'));
-    await tester.pumpAndSettle();
-    expect(find.text('780.20'), findsNothing); // 工商无实时价 → 头卡 '--'
-
+    // 头卡 caption 与切换段同文案，用 .first 定位切换段。
     await tester.tap(find.text('Au9999'));
     await tester.pumpAndSettle();
-    expect(find.text('780.20'), findsOneWidget); // 切回 Au9999 恢复实时价
+    expect(find.text('780.20'), findsOneWidget); // 切到 Au9999 显示实时价
+
+    await tester.tap(find.text('工商积存金').first);
+    await tester.pumpAndSettle();
+    expect(find.text('780.20'), findsNothing); // 工商无实时价 → 头卡 '--'
+    expect(find.text('881.00'), findsNothing);
+
+    await tester.tap(find.text('浙商积存金').first);
+    await tester.pumpAndSettle();
+    expect(find.text('881.00'), findsOneWidget); // 切回浙商恢复实时价
   });
 
   testWidgets('行情页当日统计卡：实时流填充日线字段显示四值', (tester) async {
+    // 默认品种为浙商：浙商流注入日线字段，Au9999/工商为空。
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(GoldPrice(
-            code: 'Au9999',
+        accumulationPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(GoldPrice(
+            code: 'CZB-JCJ',
             price: 780.20,
             change: 3.50,
             percent: 0.45,
@@ -98,8 +102,7 @@ void main() {
             highPrice: 781.50,
             lowPrice: 775.20,
             time: 1))),
-        accumulationPriceProvider
-            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: MarketPage()),

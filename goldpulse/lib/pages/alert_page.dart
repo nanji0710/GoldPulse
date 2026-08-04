@@ -156,7 +156,7 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
     'icbc': '工商积存金',
   };
   String _type = 'price_up';
-  String _kind = 'au9999';
+  String _kind = 'accumulation'; // 默认品种：浙商积存金
   final _targetController = TextEditingController();
   String? _targetError;
 

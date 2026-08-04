@@ -21,10 +21,20 @@ import 'package:goldpulse/utils/formatters.dart';
 }
 
 class PriceLineChart extends StatelessWidget {
+  /// [spots] 的 x 为「距 [periodStart] 的分钟数」（时间轴按日历周期定位，
+  /// 无数据的时段也保留空档与刻度标签）。[spanMinutes] 为周期总跨度：
+  /// 1日=1440（00:00–24:00）、7日=10080、30日=43200。
   final List<FlSpot> spots;
-  final List<DateTime> times; // 与 spots 等长的采样时间（时间轴刻度 + 触摸气泡）
+  final DateTime periodStart;
+  final int spanMinutes;
   final String Function(DateTime)? timeFormatter; // 默认 HH:mm，长周期可传 MM-DD
-  const PriceLineChart({super.key, required this.spots, required this.times, this.timeFormatter});
+  const PriceLineChart({
+    super.key,
+    required this.spots,
+    required this.periodStart,
+    required this.spanMinutes,
+    this.timeFormatter,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,9 +44,11 @@ class PriceLineChart extends StatelessWidget {
     final minY = ys.reduce((a, b) => a < b ? a : b) * 0.995;
     final maxY = ys.reduce((a, b) => a > b ? a : b) * 1.005;
     final fmt = timeFormatter ?? _fmtTime;
-    // 时间轴约 4-5 档刻度
-    final tickEvery = (spots.length / 4).ceil().clamp(1, 1 << 30);
+    // 时间轴约 5 档刻度：按周期总跨度均匀分布（无数据的时段同样显示日期/时间标签）。
+    final tickEvery = (spanMinutes / 5).ceil().clamp(1, 1 << 30);
     return LineChart(LineChartData(
+      minX: 0,
+      maxX: spanMinutes.toDouble(),
       minY: minY,
       maxY: maxY,
       clipData: const FlClipData.all(),
@@ -67,11 +79,11 @@ class PriceLineChart extends StatelessWidget {
             reservedSize: 24,
             interval: tickEvery.toDouble(),
             getTitlesWidget: (v, meta) {
-              final i = v.round();
-              if (i < 0 || i >= times.length) return const SizedBox.shrink();
+              // v = 距周期起点的分钟数；无数据时段同样显示对应时间/日期标签。
+              final time = periodStart.add(Duration(minutes: v.round()));
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(fmt(times[i]),
+                child: Text(fmt(time),
                     style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
               );
             },
@@ -132,10 +144,10 @@ class PriceLineChart extends StatelessWidget {
           getTooltipColor: (_) => AppTheme.cardHighlight,
           tooltipRoundedRadius: 10, // fl_chart 0.69：圆角参数为 double
           getTooltipItems: (touched) => touched.map((t) {
-            final i = t.x.round();
-            final label = (i >= 0 && i < times.length) ? fmt(times[i]) : '';
+            // t.x = 距周期起点的分钟数 → 换算回真实时间。
+            final time = periodStart.add(Duration(minutes: t.x.round()));
             return LineTooltipItem(
-              '${t.y.toStringAsFixed(2)} 元/g\n$label',
+              '${t.y.toStringAsFixed(2)} 元/g\n${fmt(time)}',
               const TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 12,

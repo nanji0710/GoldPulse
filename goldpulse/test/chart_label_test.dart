@@ -47,9 +47,11 @@ void main() {
     });
   });
 
-  testWidgets('PriceLineChart 带最高/最低标签可正常渲染', (tester) async {
-    final spots = _spots([1, 2, 3, 4, 5]);
-    final times = [for (var i = 0; i < 5; i++) DateTime(2026, 1, 1, 9 + i)];
+  testWidgets('PriceLineChart 时间轴 + 最高/最低标签可正常渲染', (tester) async {
+    // x = 距周期起点的分钟数；数据集中在后段，前段无数据保留空档。
+    final spots = [
+      FlSpot(600, 3), FlSpot(660, 5), FlSpot(720, 2), FlSpot(780, 4), FlSpot(840, 5),
+    ];
     await tester.pumpWidget(MaterialApp(
       theme: AppTheme.theme(),
       home: Scaffold(
@@ -57,12 +59,44 @@ void main() {
           child: SizedBox(
             width: 320,
             height: 240,
-            child: PriceLineChart(spots: spots, times: times),
+            child: PriceLineChart(
+              spots: spots,
+              periodStart: DateTime(2026, 8, 4), // 当日 00:00
+              spanMinutes: 1440, // 1日 全周期
+            ),
           ),
         ),
       ),
     ));
     await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('PriceLineChart 时间轴覆盖全周期：minX=0、maxX=spanMinutes（无数据时段保留空档）', (tester) async {
+    final spots = [
+      FlSpot(600, 3), // 数据只集中在 600–840 分钟（当日 10:00–14:00），
+      FlSpot(840, 5), // 但 x 轴仍须从 0（周期起点）铺满到 spanMinutes。
+    ];
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.theme(),
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 320,
+            height: 240,
+            child: PriceLineChart(
+              spots: spots,
+              periodStart: DateTime(2026, 8, 4),
+              spanMinutes: 1440,
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    final chart = tester.widget<LineChart>(find.byType(LineChart));
+    expect(chart.data.minX, 0);
+    expect(chart.data.maxX, 1440); // 1日：00:00–24:00
     expect(tester.takeException(), isNull);
   });
 }

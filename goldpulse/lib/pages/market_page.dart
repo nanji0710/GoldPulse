@@ -69,7 +69,7 @@ class MarketPage extends ConsumerStatefulWidget {
 }
 
 class _MarketPageState extends ConsumerState<MarketPage> {
-  GoldType _type = GoldType.au9999;
+  GoldType _type = GoldType.czb; // 默认品种：浙商积存金
   String _period = '7日';
   static const _periods = ['1日', '7日', '30日'];
   bool _showCandles = false;
@@ -567,13 +567,20 @@ class _MarketPageState extends ConsumerState<MarketPage> {
                 i += (rows.length / _maxChartPoints).ceil())
               rows[i]
           ];
+    // 时间轴：x = 距周期起点的分钟数，跨全周期（无数据的时段保留空档与日期/时间标签）。
+    final periodStart = periodStartOf(_period, DateTime.now());
+    final spanMinutes = switch (_period) {
+      '1日' => 1440, // 00:00–24:00
+      '7日' => 7 * 1440,
+      _ => 30 * 1440,
+    };
+    final startMs = periodStart.millisecondsSinceEpoch;
     return PriceLineChart(
-      spots: sampled.indexed
-          .map((e) => FlSpot(e.$1.toDouble(), e.$2.price))
+      spots: sampled
+          .map((e) => FlSpot((e.time - startMs) / 60000.0, e.price))
           .toList(),
-      times: sampled
-          .map((e) => DateTime.fromMillisecondsSinceEpoch(e.time))
-          .toList(),
+      periodStart: periodStart,
+      spanMinutes: spanMinutes,
       timeFormatter: _period == '1日' ? _fmtHHmm : _fmtMonthDay,
     );
   }
