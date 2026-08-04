@@ -63,11 +63,15 @@ final assetSummaryProvider = FutureProvider<AssetSummary?>((ref) async {
   final holdings = await ref.watch(holdingsProvider.future);
   if (holdings.isEmpty) return null;
   final h = holdings.first; // MVP：单持仓；多持仓为 V2
-  // 按持仓类型选对应行情：积存金 → 浙商积存金价（银行价与 Au9999 有价差）；
-  // Au9999 持仓 → Au9999 价。价格更新时重新计算汇总（同时启动对应价格轮询）。
-  final price = h.kind == 'accumulation'
-      ? ref.watch(accumulationPriceProvider).value
-      : ref.watch(priceProvider).value;
+  // 按持仓类型选对应行情：浙商积存金 → 浙商积存金价、工商积存金 → 工商积存金价
+  // （银行价与 Au9999 有价差）；Au9999 持仓 → Au9999 价。
+  // 价格更新时重新计算汇总（同时启动对应价格轮询）。
+  // valueOrNull：AsyncError 状态下不重抛异常，安全回落 null。
+  final price = h.kind == 'icbc'
+      ? ref.watch(icbcPriceProvider).valueOrNull
+      : h.kind == 'accumulation'
+          ? ref.watch(accumulationPriceProvider).valueOrNull
+          : ref.watch(priceProvider).valueOrNull;
   if (price == null) return null; // 无行情时不展示汇总
   final trades = await ref.read(tradeDaoProvider).all();
   final sells = trades.where((t) => t.holdingId == h.id && t.type == 'sell');

@@ -9,6 +9,8 @@ import 'package:goldpulse/models/gold_price.dart';
 import 'package:goldpulse/models/holding.dart';
 import 'package:goldpulse/models/trade_record.dart';
 import 'package:goldpulse/models/alert.dart';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 import 'test_db.dart';
 
 void main() {
@@ -23,6 +25,47 @@ void main() {
     await dao.insert(gp);
     await dao.insert(gp);
     expect(await dao.count(), 1);
+  });
+  test('v1→v2 迁移：gold_price ALTER 新增日线列，旧行默认 0', () async {
+    // 手动构造一个 user_version=1 的旧库（无日线列）并插入旧数据，
+    // 然后由 AppDatabase 以 version=2 重开 → 触发 _onUpgrade 的 ALTER。
+    final factory = AppDatabase.databaseFactory;
+    final dir = await factory.getDatabasesPath();
+    final path = join(dir, 'goldpulse.db');
+    final old = await factory.openDatabase(path, options: OpenDatabaseOptions(
+      version: 1,
+      onCreate: (db, _) async {
+        await db.execute('''
+          CREATE TABLE gold_price(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL,
+            price REAL NOT NULL,
+            change REAL NOT NULL,
+            percent REAL NOT NULL,
+            pre_close REAL NOT NULL,
+            time INTEGER NOT NULL,
+            UNIQUE(code, time)
+          )''');
+      },
+    ));
+    await old.insert('gold_price', {
+      'code': 'CZB-JCJ', 'price': 780.0, 'change': 1.0, 'percent': 0.1,
+      'pre_close': 779.0, 'time': 1,
+    });
+    await old.close();
+
+    final db = await AppDatabase.database; // 触发 onUpgrade(1→2)
+    final cols = (await db.rawQuery('PRAGMA table_info(gold_price)'))
+        .map((c) => c['name'])
+        .toSet();
+    expect(cols, contains('open_price'));
+    expect(cols, contains('high_price'));
+    expect(cols, contains('low_price'));
+    // 旧行读回：日线列被 DEFAULT 0 填充。
+    final rows = await db.query('gold_price', where: 'code = ?', whereArgs: ['CZB-JCJ']);
+    expect(rows.single['open_price'], 0);
+    expect(rows.single['high_price'], 0);
+    expect(rows.single['low_price'], 0);
   });
   test('holding CRUD', () async {
     final dao = HoldingDao();

@@ -1,5 +1,5 @@
 // lib/pages/home_page.dart
-// 首页 Dashboard：Au9999/浙商积存金 实时价格 + 持仓收益概览 + 刷新倒计时
+// 首页 Dashboard：Au9999/浙商积存金/工商积存金 实时价格 + 持仓收益概览 + 刷新倒计时
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,14 +12,16 @@ import 'package:goldpulse/state/price_provider.dart';
 import 'package:goldpulse/widgets/gold_card.dart';
 import 'package:goldpulse/widgets/profit_card.dart';
 
-/// 手动刷新：重启两个行情轮询（流启动即强拉一次最新价），
+/// 手动刷新：重启三个行情轮询（流启动即强拉一次最新价），
 /// 供下拉刷新与加载态"点击重试"按钮使用。
 Future<void> refreshAllQuotes(WidgetRef ref) async {
   ref.invalidate(priceProvider);
   ref.invalidate(accumulationPriceProvider);
+  ref.invalidate(icbcPriceProvider);
   await Future.wait([
     ref.refresh(priceProvider.future),
     ref.refresh(accumulationPriceProvider.future),
+    ref.refresh(icbcPriceProvider.future),
   ]);
 }
 
@@ -30,6 +32,7 @@ class HomePage extends ConsumerWidget {
     final summary = ref.watch(assetSummaryProvider).value;
     final price = ref.watch(priceProvider).value;                 // Au9999
     final accPrice = ref.watch(accumulationPriceProvider).value;  // 浙商积存金
+    final icbcPrice = ref.watch(icbcPriceProvider).value;         // 工商积存金
     final now = DateTime.now();
     final trading = MarketHours.isTrading(now);
     final phaseLabel = MarketHours.label(now);
@@ -42,7 +45,7 @@ class HomePage extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            // 双行情卡：Au9999 + 浙商积存金 同时展示
+            // 三行情卡：Au9999 + 浙商积存金 + 工商积存金 同时展示
             if (price != null)
               GoldCard(
                 code: 'Au9999',
@@ -66,6 +69,21 @@ class HomePage extends ConsumerWidget {
                 percent: accPrice.percent,
                 time: accPrice.time,
                 source: accPrice.source,
+                statusLabel: phaseLabel,
+                statusHint: resumeHint,
+                isTrading: trading,
+              )
+            else
+              _loadingCard(context, onRetry: () => refreshAllQuotes(ref)),
+            const SizedBox(height: 14),
+            if (icbcPrice != null)
+              GoldCard(
+                code: '工商积存金',
+                price: icbcPrice.price,
+                change: icbcPrice.change,
+                percent: icbcPrice.percent,
+                time: icbcPrice.time,
+                source: icbcPrice.source,
                 statusLabel: phaseLabel,
                 statusHint: resumeHint,
                 isTrading: trading,
@@ -126,7 +144,7 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  /// 加载态卡片：转圈 + 自动重试说明 + 手动重试按钮（直接强拉两个行情源）。
+  /// 加载态卡片：转圈 + 自动重试说明 + 手动重试按钮（直接强拉三个行情源）。
   Widget _loadingCard(BuildContext context, {required VoidCallback onRetry}) {
     return Container(
       padding: const EdgeInsets.all(20),

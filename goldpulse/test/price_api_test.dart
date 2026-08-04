@@ -52,6 +52,22 @@ class _SequentialAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// 记录最后一次请求 URI 的适配器（用于断言命中 getGoldPrice?goldCode=<code>）。
+class _RecordingAdapter implements HttpClientAdapter {
+  final ResponseBody body;
+  Uri? lastUri;
+  _RecordingAdapter(this.body);
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    lastUri = options.uri;
+    return body;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   // 实测结构（2026-08-04）：Au9999 接口返回 resultData.data.{lastPrice, preClose, ...}
   final sample = {
@@ -85,6 +101,40 @@ void main() {
     expect(gp, isNotNull);
     expect(gp!.price, closeTo(883.09, 0.001));
     expect(gp.preClose, closeTo(879.46, 0.001));
+  });
+
+  test('Task9：parseJdGoldPrice 解析日线字段 openPrice/highPrice/lowPrice', () {
+    // 实测（2026-08-04）ICBC-JCJ：lastPrice=884.21 preClose=878.20
+    //   openPrice=880.69 highPrice=884.76 lowPrice=880.46
+    final gp = PriceApi.parseJdGoldPrice({
+      'resultData': {
+        'datas': {
+          'price': '884.21',
+          'yesterdayPrice': '878.20',
+          'openPrice': '880.69',
+          'highPrice': '884.76',
+          'lowPrice': '880.46',
+        },
+      },
+    }, fallbackCode: 'ICBC-JCJ');
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(884.21, 0.001));
+    expect(gp.preClose, closeTo(878.20, 0.001));
+    expect(gp.openPrice, closeTo(880.69, 0.001));
+    expect(gp.highPrice, closeTo(884.76, 0.001));
+    expect(gp.lowPrice, closeTo(880.46, 0.001));
+  });
+
+  test('Task9：日线字段缺失/非法时回退 0（不阻断行情）', () {
+    final gp = PriceApi.parseJdGoldPrice({
+      'resultData': {
+        'datas': {'price': '883.09', 'yesterdayPrice': '879.46'},
+      },
+    });
+    expect(gp, isNotNull);
+    expect(gp!.openPrice, 0);
+    expect(gp.highPrice, 0);
+    expect(gp.lowPrice, 0);
   });
 
   test('响应缺少 data 时返回 null（降级信号）', () {
@@ -222,5 +272,60 @@ void main() {
     dio.httpClientAdapter = _FailingAdapter();
     final api = PriceApi(dio: dio);
     expect(await api.fetchAccumulationPriceWithFallback(), isNull);
+  });
+
+  test('Task9：浙商积存金统一走 getGoldPrice?goldCode=CZB-JCJ（含日线字段）', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    final adapter = _RecordingAdapter(ResponseBody.fromString(
+        jsonEncode({
+          'resultData': {
+            'datas': {
+              'price': '884.21',
+              'yesterdayPrice': '878.20',
+              'openPrice': '880.69',
+              'highPrice': '884.76',
+              'lowPrice': '880.46',
+            },
+          },
+        }),
+        200,
+        headers: {'content-type': ['application/json']}));
+    dio.httpClientAdapter = adapter;
+    final api = PriceApi(dio: dio);
+    final gp = await api.fetchAccumulationPriceWithFallback();
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(884.21, 0.001));
+    expect(gp.code, 'CZB-JCJ');
+    expect(gp.openPrice, closeTo(880.69, 0.001));
+    // 命中统一 getGoldPrice 接口，而非旧的 stdLatestPrice/productSku。
+    expect(adapter.lastUri!.path, contains('getGoldPrice'));
+    expect(adapter.lastUri!.queryParameters['goldCode'], 'CZB-JCJ');
+    expect(adapter.lastUri!.queryParameters.containsKey('productSku'), isFalse);
+  });
+
+  test('Task9：工商积存金走 getGoldPrice?goldCode=ICBC-JCJ', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+    final adapter = _RecordingAdapter(ResponseBody.fromString(
+        jsonEncode({
+          'resultData': {
+            'datas': {
+              'price': '884.21',
+              'yesterdayPrice': '878.20',
+              'openPrice': '880.69',
+              'highPrice': '884.76',
+              'lowPrice': '880.46',
+            },
+          },
+        }),
+        200,
+        headers: {'content-type': ['application/json']}));
+    dio.httpClientAdapter = adapter;
+    final api = PriceApi(dio: dio);
+    final gp = await api.fetchIcbcPriceWithFallback();
+    expect(gp, isNotNull);
+    expect(gp!.code, 'ICBC-JCJ');
+    expect(gp.highPrice, closeTo(884.76, 0.001));
+    expect(adapter.lastUri!.path, contains('getGoldPrice'));
+    expect(adapter.lastUri!.queryParameters['goldCode'], 'ICBC-JCJ');
   });
 }

@@ -5,7 +5,9 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   AppDatabase._();
   static const _name = 'goldpulse.db';
-  static const _version = 1;
+  /// v2：gold_price 表新增当日日线字段 open_price/high_price/low_price
+  /// （Task 9：getGoldPrice 统一行情源返回日线字段，持久化供历史统计使用）。
+  static const _version = 2;
   static DatabaseFactory databaseFactory = databaseFactorySqflitePlugin;
   static Database? _db;
 
@@ -35,6 +37,9 @@ class AppDatabase {
         percent REAL NOT NULL,
         pre_close REAL NOT NULL,
         time INTEGER NOT NULL,
+        open_price REAL NOT NULL DEFAULT 0,
+        high_price REAL NOT NULL DEFAULT 0,
+        low_price REAL NOT NULL DEFAULT 0,
         UNIQUE(code, time)
       )''');
     await db.execute('''
@@ -70,7 +75,12 @@ class AppDatabase {
   }
 
   static Future<void> _onUpgrade(Database db, int oldV, int newV) async {
-    // 未来 schema 变更在此用版本号分叉处理（示例）：
-    // if (oldV < 2) { await db.execute('ALTER TABLE ...'); }
+    // v1 → v2：gold_price 新增当日日线字段（旧安装原地 ALTER，新装走 onCreate）。
+    // 已有旧行自动填 DEFAULT 0；fromMap 对缺失列同样回退 0，双保险。
+    if (oldV < 2) {
+      await db.execute('ALTER TABLE gold_price ADD COLUMN open_price REAL NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE gold_price ADD COLUMN high_price REAL NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE gold_price ADD COLUMN low_price REAL NOT NULL DEFAULT 0');
+    }
   }
 }

@@ -156,3 +156,40 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
     await Future.delayed(delay);
   }
 });
+
+/// 工商积存金行情轮询（统一 getGoldPrice 接口，code='ICBC-JCJ'）。
+/// 模式与 [accumulationPriceProvider] 完全一致：交易中才轮询；
+/// 无缓存时休市也拉取一次；失败降级到本地缓存；无数据时 30s 快速重试。
+final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
+  final api = ref.watch(priceApiProvider);
+  final dao = ref.watch(priceDaoProvider);
+  final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
+  final isTradingNow = ref.watch(isTradingNowProvider);
+  final nextRefresh = ref.watch(nextRefreshProvider.notifier);
+  GoldPrice? last = await dao.latest('ICBC-JCJ');
+  debugPrint('[金脉行情] 工商积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
+  yield last;
+  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
+  while (true) {
+    if (firstRun || isTradingNow() || last == null) {
+      firstRun = false;
+      try {
+        // 降级链：getGoldPrice(ICBC-JCJ) → 东方财富 Au9999 参考价 → 新浪。
+        final fresh = await api.fetchIcbcPriceWithFallback();
+        if (fresh != null) {
+          debugPrint('[金脉行情] 工商积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
+          await dao.insert(fresh);
+          last = fresh;
+        }
+      } catch (_) {
+        // 拉取失败保留缓存继续轮询。
+      }
+    }
+    yield last;
+    final delay = last == null ? const Duration(seconds: 30) : interval;
+    debugPrint('[金脉行情] 工商积存金 下次调度 ${delay.inSeconds}s'
+        ' (${last == null ? "快速重试" : "正常间隔"})');
+    nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
+    await Future.delayed(delay);
+  }
+});

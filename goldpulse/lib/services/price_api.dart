@@ -25,36 +25,11 @@ class PriceApi {
   static const jdGoldUrl =
       'https://api.jdjygold.com/gw2/generic/produTools/h5/m/getGoldPrice';
 
-  /// 浙商积存金最新价接口（京东黄金）。
-  /// 实测（2026-08-04）：resultData.datas.{price, yesterdayPrice, upAndDownAmt, upAndDownRate}
-  static const _jdStdUrl =
-      'https://api.jdjygold.com/gw2/generic/jrm/h5/m/stdLatestPrice';
-  static const _zheShangSku = '1961543816'; // 浙商积存金 productSku
-
-  /// 拉取浙商积存金最新价。失败抛 [ApiException]，由调用方降级到缓存。
-  Future<GoldPrice?> fetchAccumulationPrice() async {
-    try {
-      final res = await dio.get(_jdStdUrl,
-          queryParameters: {'productSku': _zheShangSku},
-          options: Options(receiveTimeout: const Duration(seconds: 8), sendTimeout: const Duration(seconds: 8)));
-      var data = res.data;
-      if (data is String) {
-        try {
-          data = jsonDecode(data); // dio 某些情况返回字符串
-        } on FormatException {
-          throw ApiException('响应非合法 JSON');
-        }
-      }
-      if (data is! Map<String, dynamic>) throw ApiException('响应结构非法');
-      return parseJdGoldPrice(data, fallbackCode: 'CZB-JCJ');
-    } on DioException catch (e) {
-      throw ApiException('网络请求失败: ${e.message}');
-    }
-  }
-
   /// 拉取某行情代码的最新价。失败时抛 [ApiException]，由调用方降级。
   /// 畸形响应（非 JSON / 结构非法）也转为 [ApiException]，使降级链能切换备用源，
   /// 而不是让 FormatException/TypeError 直接冒泡打断轮询流。
+  /// 统一行情源（Task 9）：Au9999='SGE-Au(T+D)'、浙商积存金='CZB-JCJ'、
+  /// 工商积存金='ICBC-JCJ' 均走本接口，返回完整当日字段（含 openPrice/highPrice/lowPrice）。
   Future<GoldPrice?> fetchGoldPrice(String code) async {
     try {
       final res = await dio.get(jdGoldUrl, queryParameters: {'goldCode': code},
@@ -160,42 +135,52 @@ class PriceApi {
     return null;
   }
 
-  /// 浙商积存金降级链：京东积存金 → 东方财富 Au9999（参考价）→ 新浪 → null。
-  /// 京东免费接口不稳定，若不给积存金配备用源，京东一挂该卡片就永远"加载中"。
-  Future<GoldPrice?> fetchAccumulationPriceWithFallback() async {
+  /// 银行积存金统一降级链（Task 9）：getGoldPrice(<code>) → 东方财富 Au9999（参考价）→ 新浪 → null。
+  /// 主源由 stdLatestPrice 迁移到 getGoldPrice，与 Au9999 完全同一接口、仅 goldCode 不同；
+  /// 免费接口不稳定，若不配备用源，主源一挂该卡片就永远"加载中"。
+  /// [tag] 仅用于诊断日志前缀（如 积存金 / 工商积存金）。
+  Future<GoldPrice?> _fetchWithFallback(String code, {required String tag}) async {
     try {
-      final gp = await fetchAccumulationPrice();
+      final gp = await fetchGoldPrice(code);
       if (gp != null) {
-        _log('积存金 主源京东成功: ${gp.price} 元/g @${gp.time}');
+        _log('$tag 主源京东(getGoldPrice)成功: ${gp.price} 元/g @${gp.time}');
         return gp;
       }
-      _log('积存金 京东返回空数据（无价格字段），继续降级');
+      _log('$tag 京东返回空数据（无价格字段），继续降级');
     } on ApiException catch (e) {
-      _log('积存金 京东失败: ${e.message}');
+      _log('$tag 京东失败: ${e.message}');
     }
     try {
-      final gp = await _eastmoneyPrice(code: 'CZB-JCJ', source: 'Au9999 参考');
+      final gp = await _eastmoneyPrice(code: code, source: 'Au9999 参考');
       if (gp != null) {
-        _log('积存金 备用东方财富(Au9999 参考)成功: ${gp.price} 元/g');
+        _log('$tag 备用东方财富(Au9999 参考)成功: ${gp.price} 元/g');
         return gp;
       }
-      _log('积存金 东方财富返回空数据，继续降级');
+      _log('$tag 东方财富返回空数据，继续降级');
     } on DioException catch (e) {
-      _log('积存金 东方财富失败: ${e.message}');
+      _log('$tag 东方财富失败: ${e.message}');
     }
     try {
-      final gp = await _sinaPrice(code: 'CZB-JCJ', source: '新浪');
+      final gp = await _sinaPrice(code: code, source: '新浪');
       if (gp != null) {
-        _log('积存金 兜底新浪成功: ${gp.price} 元/g');
+        _log('$tag 兜底新浪成功: ${gp.price} 元/g');
         return gp;
       }
-      _log('积存金 新浪返回空数据');
+      _log('$tag 新浪返回空数据');
     } on DioException catch (e) {
-      _log('积存金 新浪失败: ${e.message}');
+      _log('$tag 新浪失败: ${e.message}');
     }
-    _log('积存金 全部行情源失败');
+    _log('$tag 全部行情源失败');
     return null;
   }
+
+  /// 浙商积存金降级链（主源 getGoldPrice?goldCode=CZB-JCJ）。
+  Future<GoldPrice?> fetchAccumulationPriceWithFallback() =>
+      _fetchWithFallback('CZB-JCJ', tag: '积存金');
+
+  /// 工商积存金降级链（主源 getGoldPrice?goldCode=ICBC-JCJ）。
+  Future<GoldPrice?> fetchIcbcPriceWithFallback() =>
+      _fetchWithFallback('ICBC-JCJ', tag: '工商积存金');
 
   /// 东方财富 Au9999（上金所）解析。实测（2026-08-04）：
   ///   data.f43=最新价（×100 缩放，88380→883.80），f60=昨收（×100），
@@ -225,6 +210,7 @@ class PriceApi {
   /// 实测结构（2026-08-04）：
   ///   Au9999:  resultData.data.{lastPrice, preClose, raise, raisePercent, uniqueCode}
   ///   积存金:  resultData.datas.{price, yesterdayPrice, upAndDownAmt, upAndDownRate}
+  /// 统一行情源（Task 9）额外返回当日日线字段：openPrice / highPrice / lowPrice。
   /// 旧参考项目假设 resultData.quote.{...}，与实测不符，已按实测修正。
   static GoldPrice? parseJdGoldPrice(Map<String, dynamic> json,
       {String fallbackCode = 'SGE-Au(T+D)', String source = '京东'}) {
@@ -238,12 +224,19 @@ class PriceApi {
     final pre = _toDouble(preClose);
     // 数值非法（null / 非数字字符串）→ 视为主源失效，返回 null 走降级。
     if (p == null || pre == null) return null;
+    // 日线字段缺失/非法时回退 0（不阻断行情，历史统计按 0 处理）。
+    final open = _toDouble(data['openPrice']);
+    final high = _toDouble(data['highPrice']);
+    final low = _toDouble(data['lowPrice']);
     return GoldPrice(
       code: (data['uniqueCode'] as String?) ?? (data['code'] as String?) ?? fallbackCode,
       price: p,
       change: p - pre,
       percent: pre == 0 ? 0 : (p - pre) / pre * 100,
       preClose: pre,
+      openPrice: open ?? 0,
+      highPrice: high ?? 0,
+      lowPrice: low ?? 0,
       time: DateTime.now().millisecondsSinceEpoch,
       source: source,
     );

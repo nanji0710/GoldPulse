@@ -25,9 +25,10 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         priceProvider.overrideWith((ref) => _fixedPriceStream),
-        // 测试环境无真实 dio：积存金轮询直接给空流，避免触发 UnimplementedError。
+        // 测试环境无真实 dio：两个积存金轮询直接给空流，避免触发 UnimplementedError。
         accumulationPriceProvider
             .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: HomePage()),
     ));
