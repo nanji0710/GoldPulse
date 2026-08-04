@@ -75,19 +75,23 @@ class PriceApi {
   }
 
   /// 容错解析：遍历可能的字段路径。字段变动时只需改本方法。
+  /// 实测结构（2026-08-04）：
+  ///   Au9999:  resultData.data.{lastPrice, preClose, raise, raisePercent, uniqueCode}
+  ///   积存金:  resultData.datas.{price, yesterdayPrice, upAndDownAmt, upAndDownRate}
+  /// 旧参考项目假设 resultData.quote.{...}，与实测不符，已按实测修正。
   static GoldPrice? parseJdGoldPrice(Map<String, dynamic> json, {String fallbackCode = 'SGE-Au(T+D)'}) {
     final rd = json['resultData'];
     if (rd is! Map) return null;
-    final quote = rd['quote'] ?? rd;
-    if (quote is! Map) return null;
-    final price = (quote['price'] ?? quote['current'] ?? quote['last']);
-    final preClose = (quote['preClose'] ?? quote['preClosePrice'] ?? quote['yclose']);
+    final data = rd['data'] ?? rd['datas'] ?? rd['quote'] ?? rd;
+    if (data is! Map) return null;
+    final price = data['lastPrice'] ?? data['price'] ?? data['current'] ?? data['latest'];
+    final preClose = data['preClose'] ?? data['yesterdayPrice'] ?? data['preClosePrice'] ?? data['yclose'];
     final p = _toDouble(price);
     final pre = _toDouble(preClose);
     // 数值非法（null / 非数字字符串）→ 视为主源失效，返回 null 走降级。
     if (p == null || pre == null) return null;
     return GoldPrice(
-      code: (quote['code'] as String?) ?? fallbackCode,
+      code: (data['uniqueCode'] as String?) ?? (data['code'] as String?) ?? fallbackCode,
       price: p,
       change: p - pre,
       percent: pre == 0 ? 0 : (p - pre) / pre * 100,

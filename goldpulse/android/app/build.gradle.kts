@@ -18,12 +18,11 @@ android {
 
     defaultConfig {
         applicationId = "com.goldpulse.goldpulse"
-        // MVP 约定（brief）：targetSdk 34（≤ compileSdk 36）。minSdk 保留
-        // flutter.minSdkVersion（当前 24，即 Flutter 推荐下限；brief 原写 23，
-        // 但 flutter build 的 gradle 迁移步骤会把显式 23 重置回 flutter.minSdkVersion，
-        // 且 23 会触发插件 minSdk 告警，故采用 24）。各插件均允许此值。
+        // Android 15+ 适配（2026-08）：targetSdk 34 → 36（Android 16），覆盖
+        // Android 15（API 35）及以后所有版本；minSdk 保留 flutter.minSdkVersion（24）。
+        // targetSdk ≥ 35 后 Android 15+ 强制 edge-to-edge，页面需处理系统栏 insets。
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36
         // versionCode/versionName 由 pubspec.yaml（0.1.0+1）单一来源决定。
         versionCode = flutter.versionCode
         versionName = flutter.versionName

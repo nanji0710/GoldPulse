@@ -37,40 +37,59 @@ class _TextBodyAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  // 参考项目返回样例（字段以实测为准，容错解析）
+  // 实测结构（2026-08-04）：Au9999 接口返回 resultData.data.{lastPrice, preClose, ...}
   final sample = {
     'resultData': {
-      'quote': {'price': 780.20, 'preClose': 776.70},
+      'code': '0000',
+      'data': {
+        'lastPrice': 883.12,
+        'preClose': 882.85,
+        'raise': 1.29,
+        'raisePercent': 0.0014629,
+        'uniqueCode': 'SGE-Au(T+D)',
+      },
     }
   };
 
-  test('解析京东黄金接口响应', () {
+  test('解析京东黄金接口响应（实测结构 resultData.data）', () {
     final gp = PriceApi.parseJdGoldPrice(sample);
     expect(gp, isNotNull);
-    expect(gp!.price, closeTo(780.20, 0.001));
-    expect(gp.preClose, closeTo(776.70, 0.001));
+    expect(gp!.price, closeTo(883.12, 0.001));
+    expect(gp.preClose, closeTo(882.85, 0.001));
+    expect(gp.change, closeTo(0.27, 0.001));
     expect(gp.code, 'SGE-Au(T+D)');
   });
 
-  test('响应缺少 quote 时返回 null（降级信号）', () {
+  test('积存金接口结构（resultData.datas.price/yesterdayPrice）也容错解析', () {
+    final gp = PriceApi.parseJdGoldPrice({
+      'resultData': {
+        'datas': {'price': '883.09', 'yesterdayPrice': '879.46'},
+      },
+    });
+    expect(gp, isNotNull);
+    expect(gp!.price, closeTo(883.09, 0.001));
+    expect(gp.preClose, closeTo(879.46, 0.001));
+  });
+
+  test('响应缺少 data 时返回 null（降级信号）', () {
     expect(PriceApi.parseJdGoldPrice({'resultData': {}}), isNull);
   });
 
-  test('I3：字符串数字（免费接口返回 "780.20"）也容错解析', () {
+  test('I3：字符串数字（免费接口返回 "883.12"）也容错解析', () {
     final gp = PriceApi.parseJdGoldPrice({
-      'resultData': {'quote': {'price': '780.20', 'preClose': '776.70'}},
+      'resultData': {'data': {'lastPrice': '883.12', 'preClose': '882.85'}},
     });
     expect(gp, isNotNull);
-    expect(gp!.price, closeTo(780.20, 0.001));
-    expect(gp.preClose, closeTo(776.70, 0.001));
+    expect(gp!.price, closeTo(883.12, 0.001));
+    expect(gp.preClose, closeTo(882.85, 0.001));
   });
 
   test('I3：价格字段为非法数字时返回 null（主源失效，走降级）', () {
     expect(PriceApi.parseJdGoldPrice({
-      'resultData': {'quote': {'price': 'abc', 'preClose': 776.7}},
+      'resultData': {'data': {'lastPrice': 'abc', 'preClose': 882.85}},
     }), isNull);
     expect(PriceApi.parseJdGoldPrice({
-      'resultData': {'quote': {'price': 780.2, 'preClose': '--'}},
+      'resultData': {'data': {'lastPrice': 883.12, 'preClose': '--'}},
     }), isNull);
   });
 
