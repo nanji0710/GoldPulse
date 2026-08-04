@@ -5,6 +5,20 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:goldpulse/constants/app_theme.dart';
+import 'package:goldpulse/utils/formatters.dart';
+
+/// 找出最高（maxY）与最低（minY）数据点在 [spots] 中的下标；
+/// 多个点并列时取首次出现。空列表返回 null，单个点返回 (0,0)。
+({int maxIndex, int minIndex})? minMaxPointsOf(List<FlSpot> spots) {
+  if (spots.isEmpty) return null;
+  var maxIndex = 0, minIndex = 0;
+  for (var i = 1; i < spots.length; i++) {
+    final y = spots[i].y;
+    if (y > spots[maxIndex].y) maxIndex = i;
+    if (y < spots[minIndex].y) minIndex = i;
+  }
+  return (maxIndex: maxIndex, minIndex: minIndex);
+}
 
 class PriceLineChart extends StatelessWidget {
   final List<FlSpot> spots;
@@ -15,6 +29,7 @@ class PriceLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (spots.isEmpty) return const SizedBox.shrink();
+    final minMax = minMaxPointsOf(spots);
     final ys = spots.map((s) => s.y).toList();
     final minY = ys.reduce((a, b) => a < b ? a : b) * 0.995;
     final maxY = ys.reduce((a, b) => a > b ? a : b) * 1.005;
@@ -69,7 +84,36 @@ class PriceLineChart extends StatelessWidget {
           color: AppTheme.gold,
           isCurved: true,
           barWidth: 2,
-          dotData: const FlDotData(show: false),
+          // 最高/最低点画金色强调点 + 金额标签；其余点不画。
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, _, _, index) {
+              final mm = minMax;
+              if (mm == null) {
+                return FlDotCirclePainter(
+                    color: Colors.transparent, radius: 0);
+              }
+              if (index == mm.maxIndex) {
+                return _ExtremaDotPainter(
+                  label: fmtPrice(spot.y),
+                  dotColor: AppTheme.gold,
+                  textColor: AppTheme.gold,
+                  above: true,
+                );
+              }
+              if (index == mm.minIndex) {
+                return _ExtremaDotPainter(
+                  label: fmtPrice(spot.y),
+                  dotColor: AppTheme.gold,
+                  textColor: AppTheme.gold,
+                  above: false,
+                );
+              }
+              // 防御分支：非极值点不可见。
+              return FlDotCirclePainter(
+                  color: Colors.transparent, radius: 0);
+            },
+          ),
           belowBarData: BarAreaData(
             show: true,
             gradient: LinearGradient(
@@ -108,6 +152,74 @@ class PriceLineChart extends StatelessWidget {
     String two(int v) => v.toString().padLeft(2, '0');
     return '${two(t.hour)}:${two(t.minute)}';
   }
+}
+
+/// 最高/最低点的强调点：金色发光圆点 + fmtPrice 金额标签。
+/// [above] 为 true 时标签画在点上方（最高点），否则画在下方（最低点），避免与坐标轴重叠。
+class _ExtremaDotPainter extends FlDotPainter {
+  final String label;
+  final Color dotColor;
+  final Color textColor;
+  final bool above;
+
+  static const double _radius = 3;
+  static const double _fontSize = 12; // 与主题 labelSmall 一致
+  static const double _gap = 3;
+
+  const _ExtremaDotPainter({
+    required this.label,
+    required this.dotColor,
+    required this.textColor,
+    required this.above,
+  });
+
+  @override
+  void draw(Canvas canvas, FlSpot spot, Offset offsetInCanvas) {
+    // 轻微辉光：柔化的金色光晕。
+    canvas.drawCircle(
+      offsetInCanvas,
+      _radius + 3,
+      Paint()
+        ..color = dotColor.withValues(alpha: 0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    // 强调圆点。
+    canvas.drawCircle(offsetInCanvas, _radius, Paint()..color = dotColor);
+
+    // 金额标签：水平居中，最高点在上、最低点在下。
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: _fontSize,
+          fontWeight: FontWeight.w600,
+          fontFeatures: [FontFeature.tabularFigures()],
+          shadows: const [
+            Shadow(color: Colors.black, blurRadius: 4, offset: Offset(0, 1)),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final dx = offsetInCanvas.dx - tp.width / 2;
+    final dy = above
+        ? offsetInCanvas.dy - _radius - _gap - tp.height
+        : offsetInCanvas.dy + _radius + _gap;
+    tp.paint(canvas, Offset(dx, dy));
+  }
+
+  @override
+  Size getSize(FlSpot spot) => const Size(_radius * 2, _radius * 2);
+
+  @override
+  Color get mainColor => dotColor;
+
+  @override
+  FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) => b;
+
+  @override
+  List<Object?> get props => [label, dotColor, textColor, above];
 }
 
 /// 单根 K 线的 OHLC 数据。
