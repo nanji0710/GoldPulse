@@ -11,6 +11,27 @@ import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/chart.dart';
 import 'package:goldpulse/widgets/empty_state.dart';
 
+/// 行情页黄金类型：Au9999 / 浙商积存金 / 工商积存金。
+/// [code] 为历史库（dao.recent）代码；[caption] 为头卡状态行的品种说明。
+enum GoldType {
+  au9999('Au9999', 'SGE-Au(T+D)', 'Au9999 · 上海金'),
+  czb('浙商积存金', 'CZB-JCJ', '浙商积存金'),
+  icbc('工商积存金', 'ICBC-JCJ', '工商积存金');
+
+  const GoldType(this.label, this.code, this.caption);
+  final String label;
+  final String code;
+  final String caption;
+}
+
+/// 按类型取对应实时行情流（供 ref.watch / ref.listen 取值）。
+StreamProvider<GoldPrice?> goldPriceProviderOf(GoldType type) =>
+    switch (type) {
+      GoldType.au9999 => priceProvider,
+      GoldType.czb => accumulationPriceProvider,
+      GoldType.icbc => icbcPriceProvider,
+    };
+
 /// 区间统计：区间最高 / 区间最低 / 区间涨跌（区间首尾差%）。
 /// rows 来自 dao.recent（time DESC，新→旧）；不足 2 条返回 null（无法计算涨跌）。
 /// 涨跌基数为区间首端（最早）价格，正向为涨（红）、负向为跌（绿）。
@@ -38,6 +59,7 @@ class MarketPage extends ConsumerStatefulWidget {
 }
 
 class _MarketPageState extends ConsumerState<MarketPage> {
+  GoldType _type = GoldType.au9999;
   String _period = '7日';
   static const _periods = ['1日', '7日', '30日'];
   bool _showCandles = false;
@@ -56,15 +78,16 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     _load();
   }
 
-  /// 按当前周期从历史库加载走势数据。
+  /// 按当前周期 + 当前类型从历史库加载走势数据。
   /// 首屏（_rows == null）期间失败按空列表处理，展示空态而非报错。
   Future<void> _load() async {
     final seq = ++_loadSeq;
+    final code = _type.code; // 锁定本次请求的类型代码：切换类型后旧请求由 seq 丢弃
     List<GoldPrice> rows;
     try {
       rows = await ref
           .read(priceDaoProvider)
-          .recent('SGE-Au(T+D)', limit: _limitFor())
+          .recent(code, limit: _limitFor())
           // 本地库读取不应超过数秒；异常卡死时降级为空列表（显示空态而非永久转圈）。
           .timeout(const Duration(seconds: 5), onTimeout: () => const []);
     } catch (_) {
@@ -77,12 +100,24 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     });
   }
 
-  /// 手动刷新：重启两个行情轮询（流启动即强拉一次最新价）+ 重载历史数据。
+  /// 手动刷新：重启三个行情轮询（流启动即强拉一次最新价）+ 重载历史数据。
   /// 与首页 refreshAllQuotes 同一语义，这里内联以避免页面间循环依赖。
   Future<void> _refresh() async {
     ref.invalidate(priceProvider);
     ref.invalidate(accumulationPriceProvider);
+    ref.invalidate(icbcPriceProvider);
     await _load();
+  }
+
+  /// 切换黄金类型：切换即重载（清空旧类型走势数据，展示新类型加载态）。
+  void _selectType(GoldType t) {
+    if (t == _type) return;
+    setState(() {
+      _type = t;
+      _rows = null;
+      _loading = true;
+    });
+    _load();
   }
 
   void _selectPeriod(String p) {
@@ -91,19 +126,34 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     _load();
   }
 
+  /// 半实时重载：仅当当前类型的实时流出现新时间戳时触发，
+  /// 同一条数据（轮询重发）不重复查询。
+  void _maybeReload(AsyncValue<GoldPrice?>? prev, AsyncValue<GoldPrice?> next) {
+    if (!next.hasValue) return;
+    final nextTime = next.value!.time;
+    final prevTime = prev != null && prev.hasValue ? prev.value!.time : null;
+    if (nextTime == prevTime) return;
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     // valueOrNull：AsyncError 状态下访问 .value 会重抛原始异常，这里安全降级为 null。
-    final live = ref.watch(priceProvider).valueOrNull; // 实时流最新价
+    final live = ref.watch(goldPriceProviderOf(_type)).valueOrNull; // 当前类型实时流最新价
     // 新价入库后自动重载历史（半实时）：仅在新时间戳出现时触发，避免重复查询。
+    // 三个流始终监听、仅对当前激活类型放行，切换类型后无需重挂监听。
     // 用 hasValue 而非 .value：加载中/失败状态不触发重载。
     ref.listen(priceProvider, (prev, next) {
-      if (!next.hasValue) return;
-      final nextTime = next.value!.time;
-      final prevTime =
-          prev != null && prev.hasValue ? prev.value!.time : null;
-      if (nextTime == prevTime) return; // 同一条数据（轮询重发）不重复查询
-      _load();
+      if (_type != GoldType.au9999) return;
+      _maybeReload(prev, next);
+    });
+    ref.listen(accumulationPriceProvider, (prev, next) {
+      if (_type != GoldType.czb) return;
+      _maybeReload(prev, next);
+    });
+    ref.listen(icbcPriceProvider, (prev, next) {
+      if (_type != GoldType.icbc) return;
+      _maybeReload(prev, next);
     });
     return Scaffold(
       appBar: AppBar(
@@ -145,11 +195,14 @@ class _MarketPageState extends ConsumerState<MarketPage> {
         border: Border.all(color: AppTheme.goldSoft.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 头部：代码 + 状态胶囊（复用 GoldCard 语言：交易金点 / 休市灰点）
+        // 顶部：三类型切换分段控件（Au9999 / 浙商积存金 / 工商积存金）
+        _buildTypeSwitcher(context),
+        const SizedBox(height: 12),
+        // 状态行：品种说明 + 交易状态胶囊（复用 GoldCard 语言：交易金点 / 休市灰点）
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Au9999 · 上海金',
+            Text(_type.caption,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 15, color: AppTheme.textSecondary, letterSpacing: 0.5)),
             // Flexible + 省略号（GoldCard 同款）：窄屏（≤320dp）下胶囊收缩，避免 RenderFlex 溢出
@@ -233,12 +286,54 @@ class _MarketPageState extends ConsumerState<MarketPage> {
             ),
           ),
           const SizedBox(height: 8),
-          // 数据新鲜度（来自实时流时间戳）
+          // 数据新鲜度（实时流时间戳）+ 数据源（实时流 source，随类型切换跟随）
           Text(
-            '更新于 ${_timeLabel(DateTime.fromMillisecondsSinceEpoch(live.time))}',
+            '更新于 ${_timeLabel(DateTime.fromMillisecondsSinceEpoch(live.time))}'
+            '${live.source.isEmpty ? '' : ' · 数据源：${live.source}'}',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11),
           ),
         ],
+      ]),
+    );
+  }
+
+  // ---- 三类型切换分段控件 ----
+  /// 与周期分段控件同语言（card 底 + 圆角999 + padding4 + divider 描边），
+  /// 字号略小（13）；每段高 44px 保证触控目标；激活段金底 alpha 0.16 + 金字。
+  Widget _buildTypeSwitcher(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Row(children: [
+        for (final t in GoldType.values)
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => _selectType(t),
+              child: Container(
+                height: 44, // 触控目标 ≥44px
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _type == t
+                      ? AppTheme.gold.withValues(alpha: 0.16)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(t.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: _type == t ? FontWeight.w600 : FontWeight.w400,
+                      color: _type == t ? AppTheme.gold : AppTheme.textSecondary,
+                    )),
+              ),
+            ),
+          ),
       ]),
     );
   }
