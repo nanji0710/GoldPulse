@@ -152,37 +152,49 @@ class _MarketPageState extends ConsumerState<MarketPage> {
             Text('Au9999 · 上海金',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 15, color: AppTheme.textSecondary, letterSpacing: 0.5)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: trading
-                    ? AppTheme.gold.withValues(alpha: 0.14)
-                    : AppTheme.divider.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: trading ? AppTheme.gold : AppTheme.offline,
-                  ),
+            // Flexible + 省略号（GoldCard 同款）：窄屏（≤320dp）下胶囊收缩，避免 RenderFlex 溢出
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: trading
+                      ? AppTheme.gold.withValues(alpha: 0.14)
+                      : AppTheme.divider.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                const SizedBox(width: 6),
-                Text(phaseLabel,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: trading ? AppTheme.gold : AppTheme.textSecondary,
-                        fontWeight: FontWeight.w600)),
-                if (resumeHint != null) ...[
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: trading ? AppTheme.gold : AppTheme.offline,
+                    ),
+                  ),
                   const SizedBox(width: 6),
-                  Text(resumeHint,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(color: AppTheme.textSecondary)),
-                ],
-              ]),
+                  Flexible(
+                    child: Text(phaseLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color:
+                                trading ? AppTheme.gold : AppTheme.textSecondary,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                  if (resumeHint != null) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(resumeHint,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(color: AppTheme.textSecondary)),
+                    ),
+                  ],
+                ]),
+              ),
             ),
           ],
         ),
