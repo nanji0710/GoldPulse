@@ -55,8 +55,9 @@ final refreshIntervalProvider = FutureProvider<Duration>((ref) async {
   return Duration(seconds: seconds ?? 120);
 });
 
-/// 行情轮询：交易时段每隔 [refreshIntervalProvider] 拉取并入库；休市保持缓存（省电）。
-/// 失败自动降级：主源（京东） → 备用源（新浪） → 缓存。
+/// 行情轮询：按设定间隔 [refreshIntervalProvider] 持续拉取并入库（含收盘时段——
+/// 银行积存金等品种收盘后价格仍会变动，手动刷新有价、自动刷新必须同样有价）。
+/// 失败自动降级：主源（京东） → 东方财富参考 → 新浪 → 缓存。
 /// 间隔偏好变化时（设置页修改后 invalidate）本流自动重启。
 final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final api = ref.watch(priceApiProvider);
@@ -64,7 +65,6 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
   // 依赖在进入长驻循环前一次性捕获：不能在 async* 循环体内 read Provider ref，
   // 否则流因 refreshIntervalProvider 解析而重建后，残留协程会崩溃在已销毁的元素上。
-  final isTradingNow = ref.watch(isTradingNowProvider);
   final holdingDao = ref.watch(holdingDaoProvider);
   final alertDao = ref.watch(alertDaoProvider);
   final notifications = ref.watch(notificationsPluginProvider);
@@ -72,46 +72,41 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
   debugPrint('[金脉行情] Au9999 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
-  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
-    // 交易中才轮询（省电）；但流首次启动、以及无任何缓存数据（新装/清库）时，
-    // 休市时段也拉取一次，避免新用户休市时段无限"行情加载中"。
-    if (firstRun || isTradingNow() || last == null) {
-      firstRun = false;
-      try {
-        final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
-        if (fresh != null) {
-          debugPrint('[金脉行情] Au9999 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
-          await dao.insert(fresh);
-          last = fresh;
-          // 前台告警判定：行情轮询收到新价即触发提醒判定，
-          // 价格（price_up/price_down）与资产（profit_target）命中即本地通知。
-          // 后台 isolate 抓取判定仍为未来细化（见 main.dart callbackDispatcher 注释）。
-          try {
-            var assetValue = 0.0;
-            var totalCost = 0.0;
-            for (final h in await holdingDao.list()) {
-              assetValue += fresh.price * h.amount;
-              totalCost += h.totalCost;
-            }
-            await runAlertChecks(
-                dao: alertDao,
-                plugin: notifications,
-                price: fresh.price,
-                assetValue: assetValue,
-                totalCost: totalCost);
-          } catch (_) {
-            // 告警判定失败（如通知/DB 异常）不影响行情轮询。
+    // 每次调度都拉取：不再用交易时段门控暂停自动刷新（状态胶囊仍提示市场时段）。
+    try {
+      final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
+      if (fresh != null) {
+        debugPrint('[金脉行情] Au9999 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
+        await dao.insert(fresh);
+        last = fresh;
+        // 前台告警判定：行情轮询收到新价即触发提醒判定，
+        // 价格（price_up/price_down）与资产（profit_target）命中即本地通知。
+        // 后台 isolate 抓取判定仍为未来细化（见 main.dart callbackDispatcher 注释）。
+        try {
+          var assetValue = 0.0;
+          var totalCost = 0.0;
+          for (final h in await holdingDao.list()) {
+            assetValue += fresh.price * h.amount;
+            totalCost += h.totalCost;
           }
+          await runAlertChecks(
+              dao: alertDao,
+              plugin: notifications,
+              price: fresh.price,
+              assetValue: assetValue,
+              totalCost: totalCost);
+        } catch (_) {
+          // 告警判定失败（如通知/DB 异常）不影响行情轮询。
         }
-      } catch (_) {
-        // 防御性兜底：任何意外错误（含解析异常）都保留缓存继续轮询，
-        // 避免畸形响应把 StreamProvider 打成 AsyncError 而永久停止。
       }
+    } catch (_) {
+      // 防御性兜底：任何意外错误（含解析异常）都保留缓存继续轮询，
+      // 避免畸形响应把 StreamProvider 打成 AsyncError 而永久停止。
     }
     yield last;
     // 尚无任何数据时（新装/清库/首拉失败）用 30s 快速重试，直到首次成功；
-    // 已有缓存后恢复配置间隔（省电）。
+    // 已有缓存后按用户配置间隔持续刷新。
     final delay = last == null ? const Duration(seconds: 30) : interval;
     debugPrint('[金脉行情] Au9999 下次调度 ${delay.inSeconds}s'
         ' (${last == null ? "快速重试" : "正常间隔"})');
@@ -120,33 +115,28 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   }
 });
 
-/// 浙商积存金行情轮询（京东积存金接口，code='CZB-JCJ'）。
+/// 浙商积存金行情轮询（统一 getGoldPrice 接口，code='CZB-JCJ'）。
 /// 用户实际持仓品种：首页价格卡与盈亏计算均以其为准。
-/// 同样：交易中才轮询；无缓存时休市也拉取一次；失败降级到本地缓存。
+/// 按设定间隔持续轮询（含收盘时段）；失败降级到本地缓存。
 final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final api = ref.watch(priceApiProvider);
   final dao = ref.watch(priceDaoProvider);
   final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
-  final isTradingNow = ref.watch(isTradingNowProvider);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('CZB-JCJ');
   debugPrint('[金脉行情] 积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
-  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
-    if (firstRun || isTradingNow() || last == null) {
-      firstRun = false;
-      try {
-        // 降级链：京东积存金 → 东方财富 Au9999 参考价 → 新浪。
-        final fresh = await api.fetchAccumulationPriceWithFallback();
-        if (fresh != null) {
-          debugPrint('[金脉行情] 积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
-          await dao.insert(fresh);
-          last = fresh;
-        }
-      } catch (_) {
-        // 拉取失败保留缓存继续轮询。
+    try {
+      // 降级链：京东积存金 → 东方财富 Au9999 参考价 → 新浪。
+      final fresh = await api.fetchAccumulationPriceWithFallback();
+      if (fresh != null) {
+        debugPrint('[金脉行情] 积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
+        await dao.insert(fresh);
+        last = fresh;
       }
+    } catch (_) {
+      // 拉取失败保留缓存继续轮询。
     }
     yield last;
     final delay = last == null ? const Duration(seconds: 30) : interval;
@@ -158,32 +148,27 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
 });
 
 /// 工商积存金行情轮询（统一 getGoldPrice 接口，code='ICBC-JCJ'）。
-/// 模式与 [accumulationPriceProvider] 完全一致：交易中才轮询；
-/// 无缓存时休市也拉取一次；失败降级到本地缓存；无数据时 30s 快速重试。
+/// 模式与 [accumulationPriceProvider] 完全一致：按设定间隔持续轮询；
+/// 失败降级到本地缓存；无数据时 30s 快速重试。
 final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final api = ref.watch(priceApiProvider);
   final dao = ref.watch(priceDaoProvider);
   final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
-  final isTradingNow = ref.watch(isTradingNowProvider);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('ICBC-JCJ');
   debugPrint('[金脉行情] 工商积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
-  var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
-    if (firstRun || isTradingNow() || last == null) {
-      firstRun = false;
-      try {
-        // 降级链：getGoldPrice(ICBC-JCJ) → 东方财富 Au9999 参考价 → 新浪。
-        final fresh = await api.fetchIcbcPriceWithFallback();
-        if (fresh != null) {
-          debugPrint('[金脉行情] 工商积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
-          await dao.insert(fresh);
-          last = fresh;
-        }
-      } catch (_) {
-        // 拉取失败保留缓存继续轮询。
+    try {
+      // 降级链：getGoldPrice(ICBC-JCJ) → 东方财富 Au9999 参考价 → 新浪。
+      final fresh = await api.fetchIcbcPriceWithFallback();
+      if (fresh != null) {
+        debugPrint('[金脉行情] 工商积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
+        await dao.insert(fresh);
+        last = fresh;
       }
+    } catch (_) {
+      // 拉取失败保留缓存继续轮询。
     }
     yield last;
     final delay = last == null ? const Duration(seconds: 30) : interval;
