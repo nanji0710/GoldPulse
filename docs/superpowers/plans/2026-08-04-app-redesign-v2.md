@@ -115,3 +115,61 @@
 - [ ] 收益三口径在首页收益卡与资产列表均展示
 - [ ] analyze 零告警、测试全绿、真机安装验证
 - [ ] 提交并推送 main
+
+## Task 7（修订）: 行情页黄金类型切换（三类型，依赖 Task 9）
+
+行情页需支持在 **Au9999 / 浙商积存金 / 工商积存金** 三类型间切换（依赖 Task 9 提供的 icbcPriceProvider 与统一 getGoldPrice 源）。
+
+规格：
+1. 价格头卡顶部标签区改为紧凑分段控件 `[Au9999 | 浙商积存金 | 工商积存金]`（两段，样式与周期分段控件一致但更小，高度 ≥44px 可点击；激活段金底 alpha 0.16 金字）
+2. 切换类型时：
+   - 实时价来源切换：Au9999 → `priceProvider`；浙商 → `accumulationPriceProvider`；工商 → `icbcPriceProvider`（均 valueOrNull）
+   - 历史数据代码切换：`'SGE-Au(T+D)'` ↔ `'CZB-JCJ'` ↔ `'ICBC-JCJ'`（dao.recent），重载图表与区间统计
+   - 头卡「数据源」展示跟随实时价
+3. 状态在类型切换间独立保留？不要求——切换即重载即可
+4. 空态/加载态复用现有逻辑（CZB-JCJ 无历史时显示 EmptyState 提示）
+5. 既有 smoke test 的 1日/7日/30日/K线 文案保持可寻址
+6. flutter analyze 零告警 + flutter test 全绿
+
+## Task 8: 刷新频率增加 1S/5S/10S（用户新需求）
+
+设置页刷新间隔选项需增加 1 秒 / 5 秒 / 10 秒。
+- setting_page.dart `_refreshOptions`（当前 30/60/120/300/900 秒）前置插入 1/5/10
+- `_label(Duration)` 显示格式化需正确显示「1 秒 / 5 秒 / 10 秒」（检查现有秒级分支）
+- 行情页倒计时 `nextRefreshFreqText` 已支持秒级（"每 10 秒刷新"）——验证不回归
+- 1 秒级轮询对免费接口压力大：实现即可，不额外限流（用户明确要求）
+- flutter analyze 零告警 + flutter test 全绿
+
+## Task 9: 工商积存金（京东金融源）（用户新需求）
+
+新增**工商银行积存金**行情（来源同为 api.jdjygold.com stdLatestPrice，SKU 待发现验证）。
+- `lib/services/price_api.dart`：fetchAccumulationPrice 参数化 productSku + 展示名（或新增 fetchIcbcPrice），code='ICBC-JCJ'
+- `lib/state/price_provider.dart`：新增 `icbcPriceProvider`（StreamProvider，模式同 accumulationPriceProvider，轮询/降级/30s 重试一致）
+- 持仓类型：addHolding 下拉新增「工商积存金」（kind='icbc'）；asset_provider / holding_list_tile 价格选择 kind=='icbc' → icbcPriceProvider
+- 首页：新增第三张 GoldCard（工商积存金）
+- 行情页类型切换（Task 7）扩展为三类型 [Au9999 | 浙商积存金 | 工商积存金]
+- flutter analyze 零告警 + flutter test 全绿
+
+## Task 9（修订）: 工商积存金 + 统一行情源（用户新需求 + 参考项目确认）
+
+**SKU/接口已确认**（参考 https://github.com/SkrMiiKio/gold-price-monitor + 实测 2026-08-04）：
+- 所有品种统一走 `getGoldPrice?goldCode=<uniqueCode>`，返回完整当日字段
+  - Au9999 = `SGE-Au(T+D)`；浙商积存金 = `CZB-JCJ`；工商积存金 = `ICBC-JCJ`
+- 实测 ICBC-JCJ: lastPrice=884.21 preClose=878.20 openPrice=880.69 highPrice=884.76 lowPrice=880.46
+
+改动：
+1. `lib/models/gold_price.dart`：GoldPrice 增加可选日线字段 `openPrice/highPrice/lowPrice`（day stats；fromMap/toMap 同步，旧行默认 0/null 兼容）
+2. `lib/services/price_api.dart`：parseJdGoldPrice 解析 openPrice/highPrice/lowPrice；浙商积存金改用 getGoldPrice?goldCode=CZB-JCJ（替换 stdLatestPrice，代码统一、获得日线字段）；新增 `fetchGoldPrice('ICBC-JCJ')` 即可（已通用）
+3. `lib/state/price_provider.dart`：新增 `icbcPriceProvider`（StreamProvider，code='ICBC-JCJ'，模式同 priceProvider：轮询/降级/30s重试）；浙商与工商均为独立轮询流
+4. 持仓类型下拉：新增「工商积存金」kind='icbc'；asset_provider / holding_list_tile 价格选择 kind=='icbc' → icbcPriceProvider
+5. 首页：新增第三张 GoldCard（工商积存金）
+6. flutter analyze 零告警 + flutter test 全绿
+
+## Task 10: 当日行情四字段（用户新需求）
+
+行情页增加**当日最高价 / 当日最低价 / 当日开盘价 / 上日收盘价**展示（数据来自 getGoldPrice 返回的 highPrice/lowPrice/openPrice/preClose）。
+- 行情页在价格头卡与区间统计之间（或区间统计卡内）加「当日统计」行：当日最高 / 当日最低 / 当日开盘 / 昨收（四列或 2×2）
+- 数据源：当前所选类型的实时流（priceProvider/accumulationPriceProvider/icbcPriceProvider）的 day 字段；无数据时显示 '--'
+- 与现有「区间统计」（按周期历史计算）区分：当日统计 = API 日线字段；区间统计 = 所选周期历史高低
+- 首页 GoldCard 可选加一行当日幅度（可选，先做行情页）
+- 不破坏既有测试；flutter analyze 零告警 + flutter test 全绿
