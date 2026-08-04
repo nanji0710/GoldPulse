@@ -8,7 +8,7 @@ import 'package:goldpulse/widgets/gold_card.dart';
 void main() {
   testWidgets('下跌日显示单个负号（无 (+-) 双重符号）', (tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: -1.23, percent: -0.16)),
+      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: -1.23, percent: -0.16, time: 1000)),
     ));
     final text = tester.widget<Text>(find.textContaining('%')).data!;
     expect(text.contains('(-0.16%)'), isTrue);
@@ -18,7 +18,7 @@ void main() {
 
   testWidgets('上涨日正确显示正号', (tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 1.23, percent: 0.16)),
+      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 1.23, percent: 0.16, time: 1000)),
     ));
     final text = tester.widget<Text>(find.textContaining('%')).data!;
     expect(text.contains('(+0.16%)'), isTrue);
@@ -26,7 +26,7 @@ void main() {
 
   testWidgets('平盘显示正号（+0.00%）', (tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 0, percent: 0)),
+      home: Scaffold(body: GoldCard(code: 'Au9999', price: 780.20, change: 0, percent: 0, time: 1000)),
     ));
     final text = tester.widget<Text>(find.textContaining('%')).data!;
     expect(text.contains('(+0.00%)'), isTrue);
