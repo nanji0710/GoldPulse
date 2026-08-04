@@ -39,22 +39,25 @@ class Calculator {
       sellTrades.fold(0.0, (sum, t) => sum + t.amount * t.price - t.fee);
 
   /// 累计收益（已实现 + 未实现）：
-  /// 累计 = Σ卖出净得 + 当前持仓市值 − 累计投入总成本。
-  /// 该恒等式对任意买卖/生息序列成立：
-  ///   无交易时退化为持仓收益；全部卖出后退化为纯已实现收益。
+  /// 累计 = Σ卖出净得 + 当前持仓市值 − 累计买入总成本（boughtCost）。
+  /// 卖出按均价扣减 totalCost 后，若仍用 totalCost 计算会虚增已实现部分，
+  /// 故用独立累计投入 boughtCost 保持恒等式对任意买卖/生息序列成立。
   static double cumulativeProfit({
     required double currentPrice,
     required double amount,
-    required double totalCost,
+    required double boughtCost,
     required Iterable<TradeRecord> sellTrades,
-  }) => sellNetProceeds(sellTrades) + currentPrice * amount - totalCost;
+  }) => sellNetProceeds(sellTrades) + currentPrice * amount - boughtCost;
 
-  /// 应用一笔交易到持仓状态，返回新的克重与总成本。
-  /// [amount] 当前克重，[totalCost] 累计买入总成本。
-  /// 买入：克重、成本都增；生息：仅克重增（摊薄成本）；卖出：仅克重减、成本保留。
-  static ({double amount, double totalCost}) applyTrade({
+  /// 加权平均成本法应用一笔交易到持仓状态。
+  /// [amount] 当前克重，[totalCost] 剩余总成本，[boughtCost] 累计买入总成本。
+  /// 买入：克重、剩余成本与累计投入都增（均价改变 = 新总成本 ÷ 新数量）；
+  /// 生息：仅克重增（摊薄均价）；卖出：克重减、剩余成本扣 均价×卖出克重（均价不变），
+  ///       累计投入不变。
+  static ({double amount, double totalCost, double boughtCost}) applyTrade({
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required TradeRecord record,
   }) {
     switch (record.type) {
@@ -62,46 +65,73 @@ class Calculator {
         return (
           amount: amount + record.amount,
           totalCost: totalCost + record.amount * record.price,
+          boughtCost: boughtCost + record.amount * record.price,
         );
       case 'interest':
-        return (amount: amount + record.amount, totalCost: totalCost);
+        return (
+          amount: amount + record.amount,
+          totalCost: totalCost,
+          boughtCost: boughtCost,
+        );
       case 'sell':
         if (record.amount > amount) {
           throw ArgumentError('卖出克重不能大于当前持仓');
         }
-        return (amount: amount - record.amount, totalCost: totalCost);
+        final avg = avgCost(totalCost, amount);
+        return (
+          amount: amount - record.amount,
+          totalCost: totalCost - avg * record.amount,
+          boughtCost: boughtCost,
+        );
       default:
         throw ArgumentError('未知交易类型: ${record.type}');
     }
   }
 
   /// 反向应用一笔交易（删除交易时回滚持仓状态）。
-  /// buy → 减克重减成本；sell → 加克重；interest → 减克重。
-  /// 回滚后克重/成本为负时返回 null（禁止删除）。
-  static ({double amount, double totalCost})? reverseTrade({
+  /// buy → 减克重、剩余成本与累计投入；sell → 加克重、加回 均价×卖出克重；
+  /// interest → 减克重。回滚后克重/成本/累计投入为负时返回 null（禁止删除）。
+  /// 卖出后均价不变，故回滚加回的均价用当前 avgCost 即可精确还原。
+  static ({double amount, double totalCost, double boughtCost})? reverseTrade({
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required TradeRecord record,
   }) {
     switch (record.type) {
       case 'buy':
         if (amount < record.amount ||
-            totalCost < record.amount * record.price) {
+            totalCost < record.amount * record.price ||
+            boughtCost < record.amount * record.price) {
           return null;
         }
         return (
           amount: amount - record.amount,
           totalCost: totalCost - record.amount * record.price,
+          boughtCost: boughtCost - record.amount * record.price,
         );
       case 'interest':
         if (amount < record.amount) {
           return null;
         }
-        return (amount: amount - record.amount, totalCost: totalCost);
+        return (
+          amount: amount - record.amount,
+          totalCost: totalCost,
+          boughtCost: boughtCost,
+        );
       case 'sell':
-        return (amount: amount + record.amount, totalCost: totalCost);
+        final avg = avgCost(totalCost, amount);
+        return (
+          amount: amount + record.amount,
+          totalCost: totalCost + avg * record.amount,
+          boughtCost: boughtCost,
+        );
       default:
-        return (amount: amount, totalCost: totalCost);
+        return (
+          amount: amount,
+          totalCost: totalCost,
+          boughtCost: boughtCost,
+        );
     }
   }
 }

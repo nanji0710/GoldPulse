@@ -51,6 +51,7 @@ class HoldingDao {
     required int holdingId,
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required TradeRecord record,
   }) async {
     final db = await _db;
@@ -59,7 +60,7 @@ class HoldingDao {
     await db.transaction((txn) async {
       await txn.update(
         'holding',
-        {'amount': amount, 'total_cost': totalCost},
+        {'amount': amount, 'total_cost': totalCost, 'bought_cost': boughtCost},
         where: 'id = ?',
         whereArgs: [holdingId],
       );
@@ -68,18 +69,19 @@ class HoldingDao {
   }
 
   /// 原子删除一笔交易：单事务内删除 trade_record 行并回滚持仓克重/成本，
-  /// 任一步失败则整体回滚，避免半更新状态（[amount]/[totalCost] 为回滚后的目标值）。
+  /// 任一步失败则整体回滚，避免半更新状态（[amount]/[totalCost]/[boughtCost] 为回滚后的目标值）。
   Future<void> deleteTrade({
     required int holdingId,
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required int tradeId,
   }) async {
     final db = await _db;
     await db.transaction((txn) async {
       await txn.update(
         'holding',
-        {'amount': amount, 'total_cost': totalCost},
+        {'amount': amount, 'total_cost': totalCost, 'bought_cost': boughtCost},
         where: 'id = ?',
         whereArgs: [holdingId],
       );

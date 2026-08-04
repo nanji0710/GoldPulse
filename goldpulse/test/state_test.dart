@@ -40,13 +40,13 @@ void main() {
     test('同品种合并克重与均价、多品种分开、total 线性合计', () async {
       final holdingDao = HoldingDao();
       final tradeDao = TradeDao();
-      // 浙商两笔：30g@870、20g@880（totalCost 分别 26100、17600）；工商一笔 10g@890
+      // 浙商两笔：30g@870、20g@880（totalCost / boughtCost 分别 26100、17600）；工商一笔 10g@890
       final h1Id = await holdingDao.insert(
-          Holding(name: '浙商1', kind: 'accumulation', amount: 30, totalCost: 26100, createdAt: 1));
+          Holding(name: '浙商1', kind: 'accumulation', amount: 30, totalCost: 26100, boughtCost: 26100, createdAt: 1));
       await holdingDao.insert(
-          Holding(name: '浙商2', kind: 'accumulation', amount: 20, totalCost: 17600, createdAt: 2));
+          Holding(name: '浙商2', kind: 'accumulation', amount: 20, totalCost: 17600, boughtCost: 17600, createdAt: 2));
       await holdingDao.insert(
-          Holding(name: '工商', kind: 'icbc', amount: 10, totalCost: 8900, createdAt: 3));
+          Holding(name: '工商', kind: 'icbc', amount: 10, totalCost: 8900, boughtCost: 8900, createdAt: 3));
       // 浙商卖单：10g@900 fee 36
       await tradeDao.insert(
           TradeRecord(holdingId: h1Id, type: 'sell', amount: 10, price: 900, fee: 36, time: 4));
@@ -64,7 +64,8 @@ void main() {
       await container.read(accumulationPriceProvider.future);
       await container.read(icbcPriceProvider.future);
       final list = await container.read(typeSummariesProvider.future);
-      // 浙商：totalGrams=50、totalCost=43700、avgCost=874.0；卖单净得=10*900-36=8964
+      // 浙商：totalGrams=50、totalCost=43700、avgCost=874.0；卖单净得=10*900-36=8964。
+      // 无卖出扣成本场景 boughtCost = totalCost = 43700，累计收益用 boughtCost 口径。
       final czb = list.firstWhere((t) => t.kind == 'accumulation');
       expect(czb.totalGrams, 50);
       expect(czb.avgCost, closeTo(874.0, 0.001));

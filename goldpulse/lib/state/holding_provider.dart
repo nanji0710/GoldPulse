@@ -43,12 +43,14 @@ final recordTradeProvider = FutureProvider.family<void, TradeRecord>((
   final next = Calculator.applyTrade(
     amount: h.amount,
     totalCost: h.totalCost,
+    boughtCost: h.boughtCost,
     record: record,
   );
   await dao.recordTrade(
     holdingId: record.holdingId,
     amount: next.amount,
     totalCost: next.totalCost,
+    boughtCost: next.boughtCost,
     record: record,
   );
   ref.invalidate(holdingsProvider);
@@ -68,6 +70,7 @@ final deleteTradeProvider =
       final next = Calculator.reverseTrade(
         amount: h.amount,
         totalCost: h.totalCost,
+        boughtCost: h.boughtCost,
         record: trade,
       );
       if (next == null) throw StateError('删除该交易会导致克重或成本为负，禁止删除');
@@ -75,6 +78,7 @@ final deleteTradeProvider =
         holdingId: arg.holdingId,
         amount: next.amount,
         totalCost: next.totalCost,
+        boughtCost: next.boughtCost,
         tradeId: arg.tradeId,
       );
       ref.invalidate(holdingsProvider);

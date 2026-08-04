@@ -216,7 +216,7 @@ class _HoldingDetailPageState extends ConsumerState<HoldingDetailPage> {
         : Calculator.cumulativeProfit(
             currentPrice: price.price,
             amount: holding.amount,
-            totalCost: holding.totalCost,
+            boughtCost: holding.boughtCost,
             sellTrades: sells,
           );
 

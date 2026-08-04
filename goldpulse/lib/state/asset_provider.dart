@@ -39,9 +39,12 @@ class AssetSummary {
     required double preClose,
     required double amount,
     required double totalCost,
+    double? boughtCost,
     Holding? holding,
     Iterable<TradeRecord> sellTrades = const [],
   }) {
+    // 累计投入：未显式给出时回退为总成本（无卖出场景两者相等，保持既有口径）。
+    final bc = boughtCost ?? totalCost;
     final value = Calculator.currentValue(currentPrice, amount);
     final profit = Calculator.floatingProfit(currentPrice, amount, totalCost);
     return AssetSummary(
@@ -52,37 +55,12 @@ class AssetSummary {
       floatingProfit: profit,
       todayProfit: Calculator.todayProfit(currentPrice, preClose, amount),
       cumulativeProfit: Calculator.cumulativeProfit(
-          currentPrice: currentPrice, amount: amount, totalCost: totalCost, sellTrades: sellTrades),
+          currentPrice: currentPrice, amount: amount, boughtCost: bc, sellTrades: sellTrades),
       profitRate: Calculator.profitRate(profit, totalCost),
       avgCost: Calculator.avgCost(totalCost, amount),
     );
   }
 }
-
-final assetSummaryProvider = FutureProvider<AssetSummary?>((ref) async {
-  final holdings = await ref.watch(holdingsProvider.future);
-  if (holdings.isEmpty) return null;
-  final h = holdings.first; // MVP：单持仓；多持仓为 V2
-  // 按持仓类型选对应行情：浙商积存金 → 浙商积存金价、工商积存金 → 工商积存金价
-  // （银行价与 Au9999 有价差）；Au9999 持仓 → Au9999 价。
-  // 价格更新时重新计算汇总（同时启动对应价格轮询）。
-  // valueOrNull：AsyncError 状态下不重抛异常，安全回落 null。
-  final price = h.kind == 'icbc'
-      ? ref.watch(icbcPriceProvider).valueOrNull
-      : h.kind == 'accumulation'
-          ? ref.watch(accumulationPriceProvider).valueOrNull
-          : ref.watch(priceProvider).valueOrNull;
-  if (price == null) return null; // 无行情时不展示汇总
-  final trades = await ref.read(tradeDaoProvider).all();
-  final sells = trades.where((t) => t.holdingId == h.id && t.type == 'sell');
-  return AssetSummary.compute(
-      currentPrice: price.price,
-      preClose: price.preClose,
-      amount: h.amount,
-      totalCost: h.totalCost,
-      holding: h,
-      sellTrades: sells);
-});
 
 /// 按品种聚合的持仓收益汇总。
 /// kind: 'accumulation'(浙商) | 'icbc'(工商) | 'au9999'；label 为中文品种名。
@@ -131,6 +109,9 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
     if (hs == null || hs.isEmpty) continue;
     final totalGrams = hs.fold(0.0, (s, h) => s + h.amount);
     final totalCost = hs.fold(0.0, (s, h) => s + h.totalCost);
+    // 累计投入 = Σ 各持仓 boughtCost（只随买入增加），用于累计收益口径；
+    // 持仓收益/均价仍基于 Σ totalCost（卖出扣成本后的剩余成本）。
+    final boughtCost = hs.fold(0.0, (s, h) => s + h.boughtCost);
     final ids = hs.map((h) => h.id).toSet();
     final sells = trades.where((t) => ids.contains(t.holdingId) && t.type == 'sell');
     final price = kind == 'icbc'
@@ -156,7 +137,7 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
           ? 0
           : Calculator.cumulativeProfit(
               currentPrice: price.price, amount: totalGrams,
-              totalCost: totalCost, sellTrades: sells),
+              boughtCost: boughtCost, sellTrades: sells),
       holdingCount: hs.length,
     ));
   }

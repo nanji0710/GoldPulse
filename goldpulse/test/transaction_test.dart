@@ -19,7 +19,7 @@ void main() {
     await AppDatabase.reset(); // 每个用例重建内存库
   });
 
-  test('recordTrade 原子写入：持仓克重/成本与交易记录一致', () async {
+  test('recordTrade 原子写入：持仓克重/成本/累计投入与交易记录一致', () async {
     final dao = HoldingDao();
     final hId = await dao.insert(
       Holding(
@@ -27,6 +27,7 @@ void main() {
         kind: 'au9999',
         amount: 100,
         totalCost: 60000,
+        boughtCost: 60000,
         createdAt: 1,
       ),
     );
@@ -34,7 +35,8 @@ void main() {
     await dao.recordTrade(
       holdingId: hId,
       amount: 50,
-      totalCost: 60000, // 卖出不改总成本（Calculator.applyTrade 语义）
+      totalCost: 30000, // 卖出扣成本：均价 600 × 50g = 30000（Calculator.applyTrade 语义）
+      boughtCost: 60000, // 累计投入不变
       record: TradeRecord(
         holdingId: hId,
         type: 'sell',
@@ -47,7 +49,8 @@ void main() {
 
     final h = await dao.get(hId);
     expect(h!.amount, 50);
-    expect(h.totalCost, 60000);
+    expect(h.totalCost, 30000);
+    expect(h.boughtCost, 60000);
     expect((await TradeDao().listByHolding(hId)).single.type, 'sell');
   });
 
@@ -88,6 +91,7 @@ void main() {
         kind: 'au9999',
         amount: 60,
         totalCost: 36200,
+        boughtCost: 36200,
         createdAt: 1,
       ),
     );
@@ -107,21 +111,24 @@ void main() {
       holdingId: hId,
       amount: 50,
       totalCost: 30000,
+      boughtCost: 30000,
       tradeId: buyId,
     );
 
     final h = await dao.get(hId);
     expect(h!.amount, 50);
     expect(h.totalCost, 30000);
+    expect(h.boughtCost, 30000);
     expect(await tradeDao.get(buyId), isNull);
     expect(await tradeDao.listByHolding(hId), isEmpty);
   });
 
   group('Calculator.reverseTrade', () {
-    test('buy 回滚：克重减、成本减（金额与成本同减）', () {
+    test('buy 回滚：克重、剩余成本与累计投入同减', () {
       final next = Calculator.reverseTrade(
         amount: 60,
         totalCost: 36200,
+        boughtCost: 36200,
         record: TradeRecord(
           holdingId: 1,
           type: 'buy',
@@ -134,11 +141,13 @@ void main() {
       expect(next, isNotNull);
       expect(next!.amount, closeTo(50, 0.0001));
       expect(next.totalCost, closeTo(30000, 0.0001));
+      expect(next.boughtCost, closeTo(30000, 0.0001));
     });
     test('buy 回滚后克重为负 → null（禁止删除）', () {
       final next = Calculator.reverseTrade(
         amount: 40,
         totalCost: 30000,
+        boughtCost: 30000,
         record: TradeRecord(
           holdingId: 1,
           type: 'buy',
@@ -150,10 +159,11 @@ void main() {
       );
       expect(next, isNull);
     });
-    test('buy 回滚后成本为负 → null（禁止删除）', () {
+    test('buy 回滚后成本/累计投入为负 → null（禁止删除）', () {
       final next = Calculator.reverseTrade(
         amount: 50,
         totalCost: 29000,
+        boughtCost: 29000,
         record: TradeRecord(
           holdingId: 1,
           type: 'buy',
@@ -165,10 +175,11 @@ void main() {
       );
       expect(next, isNull);
     });
-    test('interest 回滚：仅减克重、成本保留', () {
+    test('interest 回滚：仅减克重、成本与累计投入保留', () {
       final next = Calculator.reverseTrade(
         amount: 51.2,
         totalCost: 31000,
+        boughtCost: 31000,
         record: TradeRecord(
           holdingId: 1,
           type: 'interest',
@@ -181,11 +192,13 @@ void main() {
       expect(next, isNotNull);
       expect(next!.amount, closeTo(50, 0.0001));
       expect(next.totalCost, closeTo(31000, 0.0001));
+      expect(next.boughtCost, closeTo(31000, 0.0001));
     });
     test('interest 回滚后克重为负 → null（禁止删除）', () {
       final next = Calculator.reverseTrade(
         amount: 0.5,
         totalCost: 31000,
+        boughtCost: 31000,
         record: TradeRecord(
           holdingId: 1,
           type: 'interest',
@@ -197,10 +210,12 @@ void main() {
       );
       expect(next, isNull);
     });
-    test('sell 回滚：加回克重、成本保留（卖出从不致负）', () {
+    test('sell 回滚：加回克重、加回 均价×卖出克重，累计投入保留', () {
+      // 卖出前均价 30000/40=750，加回 750×10=7500 → 37500；卖出从不致负。
       final next = Calculator.reverseTrade(
         amount: 40,
         totalCost: 30000,
+        boughtCost: 30000,
         record: TradeRecord(
           holdingId: 1,
           type: 'sell',
@@ -212,7 +227,8 @@ void main() {
       );
       expect(next, isNotNull);
       expect(next!.amount, closeTo(50, 0.0001));
-      expect(next.totalCost, closeTo(30000, 0.0001));
+      expect(next.totalCost, closeTo(37500, 0.0001));
+      expect(next.boughtCost, closeTo(30000, 0.0001));
     });
   });
 }

@@ -34,26 +34,29 @@ class _FakeHoldingDao extends HoldingDao {
   @override
   Future<void> updateAmount(int id, double newAmount) async {
     holding = Holding(id: holding.id, name: holding.name, kind: holding.kind,
-        amount: newAmount, totalCost: holding.totalCost, createdAt: holding.createdAt);
+        amount: newAmount, totalCost: holding.totalCost,
+        boughtCost: holding.boughtCost, createdAt: holding.createdAt);
     updatedAmounts.add(newAmount);
   }
 
   @override
   Future<void> updateCost(int id, double newTotalCost) async {
     holding = Holding(id: holding.id, name: holding.name, kind: holding.kind,
-        amount: holding.amount, totalCost: newTotalCost, createdAt: holding.createdAt);
+        amount: holding.amount, totalCost: newTotalCost,
+        boughtCost: holding.boughtCost, createdAt: holding.createdAt);
   }
 
-  /// 记录交易：模拟 HoldingDao.recordTrade 的原子语义（改克重/成本 + 记一笔）。
+  /// 记录交易：模拟 HoldingDao.recordTrade 的原子语义（改克重/成本/累计投入 + 记一笔）。
   @override
   Future<void> recordTrade({
     required int holdingId,
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required TradeRecord record,
   }) async {
     holding = Holding(id: holding.id, name: holding.name, kind: holding.kind,
-        amount: amount, totalCost: totalCost, createdAt: holding.createdAt);
+        amount: amount, totalCost: totalCost, boughtCost: boughtCost, createdAt: holding.createdAt);
     updatedAmounts.add(amount);
     trades.add(record);
   }

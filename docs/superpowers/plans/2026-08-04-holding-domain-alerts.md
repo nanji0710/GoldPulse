@@ -14,7 +14,7 @@
 
 1. **增量原则**：所有改动在原有功能基础上增加，不删除/替换现有页面与功能；首页三行情卡、行情页、提醒页、设置页、引导页保持原样。
 2. 主题 token 一律取自 `lib/constants/app_theme.dart`（黑金 v2）；红涨绿跌；数字 `FontFeature.tabularFigures()`；触控目标 ≥44px。
-3. 收益三口径公式不得改动：持仓=现价×克重−总成本；今日=(现价−昨收)×克重；累计=Σ卖出净得+现价×克重−总成本。
+3. 收益三口径公式（Task 6 修订后）：持仓=现价×克重−总成本(剩余成本基础)；今日=(现价−昨收)×克重；累计=Σ卖出净得+现价×克重−累计买入总成本(boughtCost)。
 4. 同品种多笔持仓聚合：总克重=Σ克重；总成本=ΣtotalCost；均价=总成本÷总克重（加权）。
 5. **克数一律显示到小数点后 4 位**（`fmtGrams` 已改 `#,##0.0000`）；金额/价格仍 2 位。
 6. 既有测试不得破坏：`flutter analyze` 零告警；`flutter test` 全绿（基线 115）。
@@ -483,3 +483,119 @@ git commit -m "feat: 后台提醒落地（WorkManager 拉价+判定+通知）"
 - [ ] 持仓详情页展示交易流水，可追加买入/卖出/生息/删除交易（回滚）
 - [ ] 后台提醒：App 完全退出后 15 分钟级任务拉价并判定通知（前台行为不回归）
 - [ ] `flutter analyze` 零告警 + `flutter test` 全绿 + 真机验证 + 推送 main
+
+### Task 6: 买卖成本逻辑修正（加权平均成本法，用户明确规则）
+
+**用户规则（2026-08-04 明确）：**
+1. **买入**：新总成本 = 原总成本 + 本次买入金额；新数量 = 原数量 + 本次数量；新均价 = 新总成本 ÷ 新数量（**加权平均，均价改变**）。
+2. **卖出**：扣除成本 = 均价 × 卖出数量；新总成本 = 原总成本 − 扣除成本；新数量 = 原数量 − 卖出数量；**均价保持不变**。
+
+**现状问题**：`applyTrade` 卖出分支 `totalCost` 不变 → 卖出后均价跳升，违反规则 2；且累计收益公式 `Σ卖出净得+现价×数量−totalCost` 在"卖出扣成本"的新模型下会虚增已实现部分。
+
+**Files:**
+- Modify: `goldpulse/lib/models/holding.dart`（新增 `boughtCost` 字段）
+- Modify: `goldpulse/lib/database/app_database.dart`（DB v2→v3 迁移）
+- Modify: `goldpulse/lib/services/calculator.dart`（applyTrade / reverseTrade / cumulativeProfit）
+- Modify: `goldpulse/lib/database/holding_dao.dart`（recordTrade / deleteTrade 维护 boughtCost）
+- Modify: `goldpulse/lib/state/holding_provider.dart`（recordTradeProvider / deleteTradeProvider 传 boughtCost）
+- Modify: `goldpulse/lib/state/asset_provider.dart`（typeSummaries 用 boughtCost 算累计；**删除死代码 assetSummaryProvider**）
+- Modify: `goldpulse/test/state_test.dart`（删 assetSummaryProvider 用例；typeSummaries 累计断言改 boughtCost 口径）
+- Test: `goldpulse/test/calculator_test.dart`、`goldpulse/test/transaction_test.dart`、`goldpulse/test/database_test.dart`
+
+- [ ] **Step 1: Holding 增 `boughtCost` + DB v2→v3 迁移**
+
+`Holding` 新增 `final double boughtCost;`（累计买入总成本）。toMap/fromMap 增列 `bought_cost`；构造器缺省 `this.boughtCost = 0` 但**创建持仓（addHolding）时必传 boughtCost = totalCost**。
+
+`app_database.dart` 版本 2→3：`_onUpgrade` 中 `oldV < 3` 时执行 `ALTER TABLE holdings ADD COLUMN bought_cost REAL NOT NULL DEFAULT 0`；随后 `UPDATE holdings SET bought_cost = total_cost`（存量行：旧模型 totalCost 从未被卖出扣减，即等于买入总成本）。`_onCreate` 建表 SQL 同步加 `bought_cost REAL NOT NULL DEFAULT 0`。
+
+- [ ] **Step 2: Calculator 三方法改造**
+
+```dart
+/// 加权平均成本法。
+/// 买入：总成本与累计买入成本都加 amount×price（均价改变）。
+/// 卖出：总成本扣除 当前均价×卖出数量（均价不变），累计买入成本不变。
+/// 生息：仅克重增，成本不变。
+static ({double amount, double totalCost, double boughtCost}) applyTrade({
+  required double amount,
+  required double totalCost,
+  required double boughtCost,
+  required TradeRecord record,
+}) {
+  switch (record.type) {
+    case 'buy':
+      return (amount: amount + record.amount,
+          totalCost: totalCost + record.amount * record.price,
+          boughtCost: boughtCost + record.amount * record.price);
+    case 'interest':
+      return (amount: amount + record.amount, totalCost: totalCost, boughtCost: boughtCost);
+    case 'sell':
+      if (record.amount > amount) throw ArgumentError('卖出克重不能大于当前持仓');
+      final avg = avgCost(totalCost, amount);
+      return (amount: amount - record.amount,
+          totalCost: totalCost - avg * record.amount,
+          boughtCost: boughtCost);
+    default:
+      throw ArgumentError('未知交易类型: ${record.type}');
+  }
+}
+```
+
+`reverseTrade` 对称回滚（buy 减回、sell 加回 avg×卖出数量、interest 减克重；负值返回 null）。`cumulativeProfit` 签名改 `boughtCost`：
+
+```dart
+/// 累计收益 = Σ卖出净得 + 现价×数量 − 累计买入总成本（boughtCost）。
+static double cumulativeProfit({
+  required double currentPrice,
+  required double amount,
+  required double boughtCost,
+  required Iterable<TradeRecord> sellTrades,
+}) => sellNetProceeds(sellTrades) + currentPrice * amount - boughtCost;
+```
+
+- [ ] **Step 3: DAO / Provider 维护 boughtCost**
+
+`HoldingDao.recordTrade` / `deleteTrade` 增加 `boughtCost` 参数写入。`recordTradeProvider` / `deleteTradeProvider` 调 `applyTrade`/`reverseTrade`（含 boughtCost）后传入。
+
+- [ ] **Step 4: typeSummaries 用 boughtCost；删除死代码 assetSummaryProvider**
+
+`typeSummariesProvider` 中：`boughtCost = Σ holding.boughtCost`；`cumulativeProfit(currentPrice, totalGrams, boughtCost: ΣboughtCost, sells)`。持仓收益仍用 `ΣtotalCost`（剩余成本基础）；均价 = ΣtotalCost ÷ Σ克重。
+
+删除 `assetSummaryProvider`（死代码，仅 state_test 引用）与其 state_test 用例；若 state_test 中旧 `assetSummaryProvider` 测试断言改为改用 `typeSummariesProvider`。
+
+- [ ] **Step 5: 测试（按用户示例逐条验证）**
+
+```dart
+// calculator_test.dart
+test('加权平均成本法：买卖成本变化', () {
+  // 买 100g@780 → (100, 78000, 78000, avg 780)
+  final b1 = Calculator.applyTrade(amount: 0, totalCost: 0, boughtCost: 0,
+      record: TradeRecord(holdingId: 1, type: 'buy', amount: 100, price: 780, fee: 0, time: 1));
+  expect(b1.amount, 100); expect(b1.totalCost, 78000); expect(b1.boughtCost, 78000);
+  // 再买 50g@800 → (150, 118000, 118000, avg 786.67)
+  final b2 = Calculator.applyTrade(amount: b1.amount, totalCost: b1.totalCost, boughtCost: b1.boughtCost,
+      record: TradeRecord(holdingId: 1, type: 'buy', amount: 50, price: 800, fee: 0, time: 2));
+  expect(b2.amount, 150); expect(b2.totalCost, 118000);
+  expect(Calculator.avgCost(b2.totalCost, b2.amount), closeTo(786.67, 0.01));
+  // 卖 50g@900 → (100, 78666.5, 118000, avg 786.67 不变)
+  final s = Calculator.applyTrade(amount: b2.amount, totalCost: b2.totalCost, boughtCost: b2.boughtCost,
+      record: TradeRecord(holdingId: 1, type: 'sell', amount: 50, price: 900, fee: 36, time: 3));
+  expect(s.amount, 100);
+  expect(s.totalCost, closeTo(78666.5, 0.01));
+  expect(s.boughtCost, 118000);
+  expect(Calculator.avgCost(s.totalCost, s.amount), closeTo(786.67, 0.01));
+  // 累计收益不虚增：Σ卖出净得(45000−36) + 现价×100 − 118000
+  expect(Calculator.cumulativeProfit(currentPrice: 900, amount: 100, boughtCost: 118000,
+      sellTrades: [TradeRecord(holdingId: 1, type: 'sell', amount: 50, price: 900, fee: 36, time: 3)]),
+      closeTo(44964 + 90000 - 118000, 0.01));
+});
+```
+
+数据库迁移测试（database_test.dart）：v2 库（旧列）打开后 bought_cost 列存在且回填 = total_cost。
+
+- [ ] **Step 6: analyze + 全量测试**
+
+- [ ] **Step 7: Commit**
+
+```bash
+git commit -m "feat: 买卖成本加权平均法（卖出扣成本、均价不变，boughtCost 追踪累计投入）"
+```

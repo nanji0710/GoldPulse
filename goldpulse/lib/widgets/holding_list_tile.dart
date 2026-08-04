@@ -54,7 +54,7 @@ class HoldingListTile extends ConsumerWidget {
       cumulative = Calculator.cumulativeProfit(
         currentPrice: price.price,
         amount: holding.amount,
-        totalCost: holding.totalCost,
+        boughtCost: holding.boughtCost,
         sellTrades: sells,
       );
     }

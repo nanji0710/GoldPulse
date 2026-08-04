@@ -211,6 +211,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
       kind: _kind,
       amount: amount,
       totalCost: amount * cost,
+      boughtCost: amount * cost, // 初始买入即累计投入
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
     try {

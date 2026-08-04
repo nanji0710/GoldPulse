@@ -44,6 +44,7 @@ class _FakeHoldingDao extends HoldingDao {
     required int holdingId,
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required TradeRecord record,
   }) async {
     holding = Holding(
@@ -52,6 +53,7 @@ class _FakeHoldingDao extends HoldingDao {
       kind: holding.kind,
       amount: amount,
       totalCost: totalCost,
+      boughtCost: boughtCost,
       createdAt: holding.createdAt,
     );
     store.trades.add(
@@ -72,6 +74,7 @@ class _FakeHoldingDao extends HoldingDao {
     required int holdingId,
     required double amount,
     required double totalCost,
+    required double boughtCost,
     required int tradeId,
   }) async {
     holding = Holding(
@@ -80,6 +83,7 @@ class _FakeHoldingDao extends HoldingDao {
       kind: holding.kind,
       amount: amount,
       totalCost: totalCost,
+      boughtCost: boughtCost,
       createdAt: holding.createdAt,
     );
     store.trades.removeWhere((t) => t.id == tradeId);
@@ -186,6 +190,7 @@ void main() {
         kind: 'accumulation',
         amount: 50,
         totalCost: 30000,
+        boughtCost: 30000,
         createdAt: 1,
       ),
       store,
@@ -229,6 +234,7 @@ void main() {
         kind: 'accumulation',
         amount: 50,
         totalCost: 30000,
+        boughtCost: 30000,
         createdAt: 1,
       ),
       store,
@@ -296,6 +302,7 @@ void main() {
         kind: 'accumulation',
         amount: 60,
         totalCost: 36200,
+        boughtCost: 36200,
         createdAt: 1,
       ),
       store,
@@ -350,6 +357,7 @@ void main() {
         kind: 'accumulation',
         amount: 40,
         totalCost: 30000,
+        boughtCost: 30000,
         createdAt: 1,
       ),
       store,

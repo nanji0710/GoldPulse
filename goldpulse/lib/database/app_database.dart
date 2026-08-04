@@ -7,7 +7,9 @@ class AppDatabase {
   static const _name = 'goldpulse.db';
   /// v2：gold_price 表新增当日日线字段 open_price/high_price/low_price
   /// （Task 9：getGoldPrice 统一行情源返回日线字段，持久化供历史统计使用）。
-  static const _version = 2;
+  /// v3：holding 表新增 bought_cost（累计买入总成本）——卖出扣成本后 total_cost 缩减，
+  /// 用独立字段追踪累计投入，保证累计收益恒等式不变。
+  static const _version = 3;
   static DatabaseFactory databaseFactory = databaseFactorySqflitePlugin;
   static Database? _db;
 
@@ -49,6 +51,7 @@ class AppDatabase {
         kind TEXT NOT NULL,
         amount REAL NOT NULL,
         total_cost REAL NOT NULL,
+        bought_cost REAL NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL
       )''');
     await db.execute('''
@@ -81,6 +84,12 @@ class AppDatabase {
       await db.execute('ALTER TABLE gold_price ADD COLUMN open_price REAL NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE gold_price ADD COLUMN high_price REAL NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE gold_price ADD COLUMN low_price REAL NOT NULL DEFAULT 0');
+    }
+    // v2 → v3：holding 新增 bought_cost。存量行在旧模型下 total_cost 从未被卖出扣减，
+    // 故其值即等于累计买入总成本，直接回填。
+    if (oldV < 3) {
+      await db.execute('ALTER TABLE holding ADD COLUMN bought_cost REAL NOT NULL DEFAULT 0');
+      await db.execute('UPDATE holding SET bought_cost = total_cost');
     }
   }
 }
