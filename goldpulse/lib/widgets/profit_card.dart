@@ -1,5 +1,5 @@
 // lib/widgets/profit_card.dart
-// 首页收益卡片：持仓概览 + 浮动收益（红涨绿跌）
+// 首页收益卡片：持仓概览 + 三口径收益（持仓收益 / 今日盈亏 / 累计收益，红涨绿跌）
 import 'package:flutter/material.dart';
 import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/utils/formatters.dart';
@@ -8,7 +8,9 @@ class ProfitCard extends StatelessWidget {
   final String name;
   final double grams;
   final double avgCost;
-  final double floatingProfit;
+  final double floatingProfit; // 持仓收益（未实现）
+  final double todayProfit;    // 今日盈亏
+  final double cumulativeProfit; // 累计收益
   final double profitRate;
   const ProfitCard({
     super.key,
@@ -16,6 +18,8 @@ class ProfitCard extends StatelessWidget {
     required this.grams,
     required this.avgCost,
     required this.floatingProfit,
+    required this.todayProfit,
+    required this.cumulativeProfit,
     required this.profitRate,
   });
 
@@ -61,12 +65,12 @@ class ProfitCard extends StatelessWidget {
           const SizedBox(height: 16),
           const Divider(color: AppTheme.divider, height: 1),
           const SizedBox(height: 14),
-          // 收益大数字
+          // 持仓收益大数字
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text('收益',
+              Text('持仓收益',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13)),
               const SizedBox(width: 12),
               Expanded(
@@ -83,8 +87,58 @@ class ProfitCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // 今日盈亏 + 累计收益（两列）
+          Row(children: [
+            Expanded(
+              child: _ProfitMetric(
+                label: '今日盈亏',
+                value: todayProfit,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ProfitMetric(
+                label: '累计收益',
+                value: cumulativeProfit,
+              ),
+            ),
+          ]),
         ]),
       ),
+    );
+  }
+}
+
+/// 今日盈亏 / 累计收益 迷你指标。
+class _ProfitMetric extends StatelessWidget {
+  final String label;
+  final double value;
+  const _ProfitMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = value >= 0 ? AppTheme.up : AppTheme.down;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 4),
+        Text(
+          '${arrow(value)} ${fmtAmount(value.abs())} 元',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 15,
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()]),
+        ),
+      ]),
     );
   }
 }

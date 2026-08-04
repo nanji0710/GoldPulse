@@ -47,23 +47,26 @@ class StartupGate extends ConsumerWidget {
   }
 }
 
-class MainShell extends StatefulWidget {
+/// 底部导航选中下标（StateProvider 便于首页空态 CTA 等跨页跳转）。
+final shellTabProvider = StateProvider<int>((_) => 0);
+
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
-  int _index = 0;
+class _MainShellState extends ConsumerState<MainShell> {
   static const _pages = [HomePage(), MarketPage(), AssetPage(), AlertPage(), SettingPage()];
   @override
   Widget build(BuildContext context) {
+    final index = ref.watch(shellTabProvider);
     return Scaffold(
-      body: _pages[_index],
+      body: _pages[index],
       bottomNavigationBar: NavigationBar(
         backgroundColor: AppTheme.card,
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        selectedIndex: index,
+        onDestinationSelected: (i) => ref.read(shellTabProvider.notifier).state = i,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: '首页'),
           NavigationDestination(icon: Icon(Icons.show_chart), label: '行情'),

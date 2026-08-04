@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金脉 GoldPulse · UI 重构方案 v2 可视化</title>
+<style>
+  :root {
+    --bg: #0F172A; --card: #1E293B; --card2: #28384E; --gold: #D9A441; --goldsoft: #8A6A1F;
+    --up: #E5484D; --down: #2E9E6B; --text: #F1F5F9; --sub: #94A3B8; --divider: #334155;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#070B14; color:var(--text); font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif; padding:32px 20px 60px; }
+  .header { max-width:1500px; margin:0 auto 24px; }
+  .header h1 { font-size:26px; letter-spacing:.5px; }
+  .header h1 span { color:var(--gold); }
+  .header p { color:var(--sub); font-size:13px; margin-top:8px; line-height:1.8; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { font-size:11px; color:var(--sub); border:1px solid var(--divider); border-radius:999px; padding:4px 10px; background:var(--card); }
+  .chip b { color:var(--gold); font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:28px; max-width:1500px; margin:0 auto; }
+  @media (max-width:1200px){ .grid{ grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){ .grid{ grid-template-columns:1fr;} }
+  .frame { width:100%; max-width:340px; margin:0 auto; }
+  .frame-title { font-size:13px; color:var(--sub); margin-bottom:10px; text-align:center; }
+  .frame-title b { color:var(--text); }
+  .phone { background:#000; border-radius:44px; padding:10px; border:1px solid #223; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  .screen { background:var(--bg); border-radius:36px; overflow:hidden; height:720px; display:flex; flex-direction:column; position:relative; }
+  .statusbar { height:26px; background:var(--bg); display:flex; justify-content:space-between; align-items:center; padding:0 22px; font-size:10px; color:var(--sub); }
+  .appbar { display:flex; justify-content:space-between; align-items:center; padding:8px 18px 4px; }
+  .appbar .t { font-size:16px; font-weight:600; }
+  .appbar .ic { color:var(--gold); font-size:18px; }
+  .content { flex:1; padding:10px 14px 0; overflow:hidden; display:flex; flex-direction:column; gap:10px; }
+  .nav { height:64px; background:var(--card); border-radius:0 0 36px 36px; display:flex; margin-top:auto; }
+  .nav .item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10px; color:var(--sub); }
+  .nav .item.on { color:var(--gold); }
+  .nav .item .dot { width:18px; height:18px; border-radius:50%; background:currentColor; opacity:.9; position:relative; }
+  .nav .item .dot::after { content:''; position:absolute; inset:3px; background:var(--card); border-radius:50%; }
+  /* 组件 */
+  .card { background:var(--card); border-radius:18px; padding:14px; border:1px solid var(--divider); }
+  .hero { background:linear-gradient(180deg,#2B3B55,#28384E); border:1px solid rgba(138,106,31,.35); }
+  .pill { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 10px; font-size:11px; }
+  .pill.gold { background:rgba(217,164,65,.14); color:var(--gold); }
+  .pill.gray { background:rgba(51,65,85,.5); color:var(--sub); }
+  .pill.up { background:rgba(229,72,77,.14); color:var(--up); }
+  .pill.down { background:rgba(46,158,107,.14); color:var(--down); }
+  .dotx { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .price { font-size:34px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.5px; }
+  .unit { font-size:13px; color:var(--sub); margin-left:4px; }
+  .lbl { font-size:11px; color:var(--sub); }
+  .time { font-size:10px; color:var(--sub); margin-top:8px; }
+  .stats { display:flex; justify-content:space-between; }
+  .stats .s { flex:1; }
+  .stats .s + .s { margin-left:10px; }
+  .stats .v { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:3px; }
+  .seg { display:flex; background:var(--card); border:1px solid var(--divider); border-radius:999px; padding:4px; }
+  .seg div { flex:1; text-align:center; padding:8px 0; border-radius:999px; font-size:12px; color:var(--sub); }
+  .seg div.on { background:rgba(217,164,65,.16); color:var(--gold); font-weight:600; }
+  .kbtn { display:flex; align-items:center; gap:5px; border:1px solid var(--divider); border-radius:999px; padding:0 12px; font-size:12px; color:var(--sub); }
+  .kbtn.on { border-color:var(--goldsoft); background:rgba(217,164,65,.16); color:var(--gold); }
+  .btn { background:var(--gold); color:#0F172A; font-weight:600; border-radius:999px; text-align:center; padding:12px; font-size:14px; }
+  .field { background:var(--bg); border:1px solid var(--divider); border-radius:12px; padding:12px; font-size:13px; color:var(--sub); }
+  .field small { color:var(--gold); float:right; }
+  .switch { width:40px; height:22px; border-radius:999px; position:relative; flex-shrink:0; }
+  .switch.on { background:var(--gold); } .switch.off { background:var(--divider); }
+  .switch::after { content:''; position:absolute; top:2px; width:18px; height:18px; border-radius:50%; background:#fff; }
+  .switch.on::after { right:2px; } .switch.off::after { left:2px; }
+  .tile { display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--divider); }
+  .tile:last-child { border-bottom:none; }
+  .tile .ico { width:36px; height:36px; border-radius:12px; background:rgba(217,164,65,.12); color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .sheet { background:var(--card); border-radius:20px 20px 0 0; padding:10px 18px 18px; margin-top:auto; }
+  .handle { width:36px; height:4px; border-radius:999px; background:var(--divider); margin:0 auto 14px; }
+  .dots { display:flex; gap:6px; justify-content:center; }
+  .dots i { width:6px; height:6px; border-radius:999px; background:var(--divider); }
+  .dots i.on { width:18px; background:var(--gold); }
+  .empty { text-align:center; padding:34px 20px; }
+  .empty .ei { width:56px; height:56px; border-radius:50%; background:rgba(217,164,65,.10); margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-size:24px; color:var(--gold); }
+  .notice { background:var(--card); border:1px solid var(--divider); border-radius:14px; padding:10px 12px; display:flex; gap:8px; font-size:11px; color:var(--sub); align-items:flex-start; }
+  .mini { background:rgba(229,72,77,.08); border-radius:12px; padding:10px; }
+  .mini.g { background:rgba(46,158,107,.08); }
+  .mt { display:flex; gap:10px; }
+  .mt .mini { flex:1; }
+  .err { font-size:11px; color:var(--up); margin-top:6px; }
+  .candles { display:flex; align-items:flex-end; gap:4px; height:130px; padding:8px 6px 0; }
+  .candle { width:9px; border-radius:2px; }
+  .candle.up { background:var(--up); } .candle.down { border:1.5px solid var(--down); background:transparent; }
+  .kline { flex:1; }
+  svg text { font-size:10px; fill:var(--sub); font-family:inherit; }
+  .chartwrap { position:relative; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>金脉 <span>GoldPulse</span> · UI 重构方案 v2（可视化预览）</h1>
+  <p>深海军蓝 + 高级金（Dark Mode/OLED）· 全部 6 页面 + 弹层 · 收益三口径：<b>持仓收益 / 今日盈亏 / 累计收益</b></p>
+  <div class="chips">
+    <span class="chip">背景 <b>#0F172A</b></span>
+    <span class="chip">卡片 <b>#1E293B</b></span>
+    <span class="chip">主色 <b>金 #D9A441</b></span>
+    <span class="chip">红涨 <b>#E5484D</b> · 绿跌 <b>#2E9E6B</b></span>
+    <span class="chip">触控 ≥44px</span>
+    <span class="chip">数字等宽对齐</span>
+    <span class="chip">空态可行动</span>
+  </div>
+</div>
+
+<div class="grid">
+
+<!-- 引导页 -->
+<div class="frame">
+  <div class="frame-title"><b>引导页</b> · 图标记忆点 + 指示点</div>
+  <div class="phone"><div class="screen" style="background:linear-gradient(180deg,#1B2A44,#0F172A)">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div style="text-align:right;padding:4px 18px;font-size:12px;color:var(--sub)">跳过</div>
+    <div style="text-align:center;font-size:16px;font-weight:600;margin:6px 0 10px">金脉 GoldPulse</div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:0 34px">
+      <div style="width:96px;height:96px;border-radius:50%;background:rgba(217,164,65,.12);display:flex;align-items:center;justify-content:center;font-size:44px;box-shadow:0 0 40px rgba(217,164,65,.15)">🔐</div>
+      <div style="text-align:center">
+        <div style="font-size:20px;font-weight:600">本地 · 免费 · 无账号</div>
+        <div style="font-size:13px;color:var(--sub);margin-top:10px;line-height:1.7">你的黄金数据只保存在本机<br>不依赖任何服务器</div>
+      </div>
+    </div>
+    <div class="dots" style="margin-bottom:16px"><i class="on"></i><i></i><i></i><i></i></div>
+    <div style="padding:0 24px 26px"><div class="btn">下一步</div></div>
+  </div></div>
+</div>
+
+<!-- 首页 -->
+<div class="frame">
+  <div class="frame-title"><b>首页</b> · 双行情卡 + 三口径收益</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">金脉 GoldPulse</span><span class="ic">◈</span></div>
+    <div class="content">
+      <div class="card hero">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <span class="lbl">Au9999</span>
+          <span class="pill gray"><span class="dotx"></span>午间休市 · 13:30 恢复交易</span>
+        </div>
+        <div style="margin-top:12px"><span class="price">883.17</span><span class="unit">元/g</span></div>
+        <div style="margin-top:8px"><span class="pill up">▲ +1.15 &nbsp;(+0.13%)</span></div>
+        <div class="time">更新于 13:19:54 · 数据源：京东</div>
+      </div>
+      <div class="card hero">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <span class="lbl">浙商积存金</span>
+          <span class="pill gray"><span class="dotx"></span>午间休市</span>
+        </div>
+        <div style="margin-top:12px"><span class="price">883.09</span><span class="unit">元/g</span></div>
+        <div style="margin-top:8px"><span class="pill up">▲ +1.42 &nbsp;(+0.16%)</span></div>
+        <div class="time">更新于 13:19:54 · 数据源：京东</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;font-weight:600">浙商积存金</span>
+          <span class="pill up">+0.30%</span>
+        </div>
+        <div class="stats" style="margin-top:10px">
+          <div class="s"><div class="lbl">持仓</div><div class="v">50.00 g</div></div>
+          <div class="s"><div class="lbl">平均成本</div><div class="v">870.00 元/g</div></div>
+        </div>
+        <div style="border-top:1px solid var(--divider);margin-top:12px;padding-top:12px">
+          <span class="lbl">持仓收益</span>
+          <div style="font-size:26px;font-weight:700;color:var(--up);font-variant-numeric:tabular-nums;margin-top:4px">▲ 660.00 元</div>
+        </div>
+        <div class="mt" style="margin-top:12px">
+          <div class="mini"><div class="lbl">今日盈亏</div><div class="v" style="font-size:14px;color:var(--up);font-weight:600;margin-top:4px">▲ +18.50 元</div></div>
+          <div class="mini g"><div class="lbl">累计收益</div><div class="v" style="font-size:14px;color:var(--down);font-weight:600;margin-top:4px">▼ -3.60 元</div></div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--sub);margin-top:2px">每 2 分钟刷新 · 下次 14:20:00（1m 30s 后）</div>
+    </div>
+    <div class="nav">
+      <div class="item on"><span class="dot"></span>首页</div><div class="item"><span class="dot"></span>行情</div>
+      <div class="item"><span class="dot"></span>资产</div><div class="item"><span class="dot"></span>提醒</div><div class="item"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 行情页 -->
+<div class="frame">
+  <div class="frame-title"><b>行情页</b> · 价格头卡 + 区间统计 + 双轴图表</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">行情</span><span class="ic">⟳</span></div>
+    <div class="content">
+      <div class="card hero">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <span class="lbl">Au9999 · 上海金</span>
+          <span class="pill gold"><span class="dotx"></span>交易中</span>
+        </div>
+        <div style="margin-top:10px"><span class="price">883.73</span><span class="unit">元/g</span></div>
+        <div style="margin-top:6px"><span class="pill up">▲ +0.45 &nbsp;(+0.05%)</span></div>
+        <div class="time">更新于 14:17:30</div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div class="stats">
+          <div class="s"><div class="lbl">区间最高</div><div class="v">884.02</div></div>
+          <div class="s"><div class="lbl">区间最低</div><div class="v">883.11</div></div>
+          <div class="s"><div class="lbl">区间涨跌</div><div class="v" style="color:var(--up)">+0.10%</div></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="seg" style="flex:1"><div>1日</div><div class="on">7日</div><div>30日</div></div>
+        <div class="kbtn">▣ K线</div>
+      </div>
+      <div class="card" style="flex:1;padding:10px 8px 6px;display:flex;flex-direction:column">
+        <div class="chartwrap" style="flex:1;position:relative">
+          <svg viewBox="0 0 300 200" preserveAspectRatio="none" style="width:100%;height:100%">
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#D9A441" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#D9A441" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            <g stroke="#334155" stroke-width="0.5" opacity="0.4">
+              <line x1="0" y1="0" x2="300" y2="0"/><line x1="0" y1="66" x2="300" y2="66"/>
+              <line x1="0" y1="133" x2="300" y2="133"/><line x1="0" y1="200" x2="300" y2="200"/>
+            </g>
+            <path d="M0,150 L45,140 L90,132 L135,118 L180,126 L225,102 L270,94 L300,86 L300,200 L0,200 Z" fill="url(#g1)"/>
+            <polyline points="0,150 45,140 90,132 135,118 180,126 225,102 270,94 300,86" fill="none" stroke="#D9A441" stroke-width="2" stroke-linejoin="round"/>
+            <text x="0" y="14">884.0</text><text x="0" y="80">883.5</text><text x="0" y="147">883.0</text>
+            <text x="4" y="196">09:30</text><text x="78" y="196">10:30</text><text x="152" y="196">11:30</text><text x="226" y="196">14:00</text><text x="276" y="196">15:30</text>
+          </svg>
+        </div>
+        <div style="text-align:center;font-size:10px;color:var(--sub);padding:4px 0 2px">触摸图表 → 十字线 + 价格/时间气泡</div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="item"><span class="dot"></span>首页</div><div class="item on"><span class="dot"></span>行情</div>
+      <div class="item"><span class="dot"></span>资产</div><div class="item"><span class="dot"></span>提醒</div><div class="item"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 资产页 -->
+<div class="frame">
+  <div class="frame-title"><b>资产页</b> · 实时盈亏 + 三口径</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">资产</span><span class="ic">＋</span></div>
+    <div class="content">
+      <div class="card" style="padding:0 14px">
+        <div class="tile">
+          <div class="ico">🏦</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">浙商积存金</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px;font-variant-numeric:tabular-nums">50.00 g · 成本 870.00 元/g</div>
+          </div>
+          <span class="pill up">▲ +660.00</span>
+          <span style="color:var(--sub);font-size:14px">›</span>
+        </div>
+        <div style="border-top:1px solid var(--divider);padding:10px 0">
+          <div class="stats">
+            <div class="s"><div class="lbl">持仓收益</div><div class="v" style="color:var(--up)">+660.00 元</div></div>
+            <div class="s"><div class="lbl">今日盈亏</div><div class="v" style="color:var(--up)">+18.50 元</div></div>
+            <div class="s"><div class="lbl">累计收益</div><div class="v" style="color:var(--down)">-3.60 元</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="padding:0 14px">
+        <div class="tile">
+          <div class="ico" style="background:rgba(46,158,107,.12);color:var(--down)">🥇</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">Au9999 实物</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px;font-variant-numeric:tabular-nums">20.00 g · 成本 850.00 元/g</div>
+          </div>
+          <span class="pill down">▼ -240.00</span>
+          <span style="color:var(--sub);font-size:14px">›</span>
+        </div>
+        <div style="border-top:1px solid var(--divider);padding:10px 0">
+          <div class="stats">
+            <div class="s"><div class="lbl">持仓收益</div><div class="v" style="color:var(--down)">-240.00 元</div></div>
+            <div class="s"><div class="lbl">今日盈亏</div><div class="v" style="color:var(--down)">-6.80 元</div></div>
+            <div class="s"><div class="lbl">累计收益</div><div class="v" style="color:var(--up)">+120.50 元</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:10px">
+        <div style="width:40px;height:40px;border-radius:50%;background:rgba(217,164,65,.10);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gold)">＋</div>
+        <span style="font-size:12px;color:var(--sub);flex:1">长按持仓可修改克重 / 记生息 / 卖出 / 删除</span>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="item"><span class="dot"></span>首页</div><div class="item"><span class="dot"></span>行情</div>
+      <div class="item on"><span class="dot"></span>资产</div><div class="item"><span class="dot"></span>提醒</div><div class="item"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 提醒页 -->
+<div class="frame">
+  <div class="frame-title"><b>提醒页</b> · 提示卡 + 类型图标</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">提醒</span><span class="ic">＋</span></div>
+    <div class="content">
+      <div class="notice">ℹ️ 后台提醒存在 15 分钟级延迟，请保持应用在最近任务中</div>
+      <div class="card" style="padding:0 14px">
+        <div class="tile">
+          <div class="ico">📈</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">价格上涨到 900 元/g</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">Au9999 · 触发时通知</div>
+          </div>
+          <div class="switch on"></div>
+        </div>
+        <div class="tile">
+          <div class="ico" style="background:rgba(46,158,107,.12);color:var(--down)">📉</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">价格下跌到 860 元/g</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">Au9999 · 触发时通知</div>
+          </div>
+          <div class="switch off"></div>
+        </div>
+        <div class="tile">
+          <div class="ico" style="background:rgba(46,158,107,.12);color:var(--down)">💰</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">收益目标 +500 元</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">持仓收益达到目标</div>
+          </div>
+          <div class="switch on"></div>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="item"><span class="dot"></span>首页</div><div class="item"><span class="dot"></span>行情</div>
+      <div class="item"><span class="dot"></span>资产</div><div class="item on"><span class="dot"></span>提醒</div><div class="item"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 设置页 -->
+<div class="frame">
+  <div class="frame-title"><b>设置页</b> · 分组卡片 + 图标</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">设置</span></div>
+    <div class="content">
+      <div class="card" style="padding:0 14px">
+        <div class="tile"><span style="font-size:15px">⏱</span><div style="flex:1;font-size:13px">行情刷新间隔</div><span style="font-size:11px;color:var(--gold)">2 分钟</span><span style="color:var(--sub)">›</span></div>
+      </div>
+      <div class="card" style="padding:0 14px">
+        <div class="tile"><span style="font-size:15px">📤</span><div style="flex:1;font-size:13px">导出备份（JSON）</div><span style="color:var(--sub)">›</span></div>
+        <div class="tile"><span style="font-size:15px">📥</span><div style="flex:1;font-size:13px">导入备份</div><span style="color:var(--sub)">›</span></div>
+        <div class="tile"><span style="font-size:15px">🗑</span><div style="flex:1;font-size:13px;color:var(--up)">清空全部数据</div><span style="color:var(--sub)">›</span></div>
+      </div>
+      <div class="card" style="padding:0 14px">
+        <div class="tile"><span style="font-size:15px">ℹ️</span><div style="flex:1;font-size:13px">金脉 GoldPulse</div><span class="pill gold">v0.1.0</span></div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--sub);margin-top:2px">本地 · 免费 · 无账号</div>
+    </div>
+    <div class="nav">
+      <div class="item"><span class="dot"></span>首页</div><div class="item"><span class="dot"></span>行情</div>
+      <div class="item"><span class="dot"></span>资产</div><div class="item"><span class="dot"></span>提醒</div><div class="item on"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 空态 + 弹层 -->
+<div class="frame">
+  <div class="frame-title"><b>空态示例</b> · 资产 / 提醒（可行动）</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div class="appbar"><span class="t">资产</span><span class="ic">＋</span></div>
+    <div class="content">
+      <div class="empty">
+        <div class="ei">🏦</div>
+        <div style="font-size:15px;font-weight:600">还没有持仓记录</div>
+        <div style="font-size:12px;color:var(--sub);margin-top:6px">录入第一笔黄金持仓，立即查看三口径收益</div>
+        <div class="btn" style="width:70%;margin:18px auto 0;padding:11px;font-size:13px">添加第一笔持仓</div>
+      </div>
+      <div class="card" style="flex:1;display:flex;flex-direction:column">
+        <div class="empty" style="padding:22px">
+          <div class="ei" style="width:44px;height:44px;font-size:18px">🔔</div>
+          <div style="font-size:13px;font-weight:600">暂无提醒</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:4px">黄金达到目标价时通知你</div>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="item"><span class="dot"></span>首页</div><div class="item"><span class="dot"></span>行情</div>
+      <div class="item on"><span class="dot"></span>资产</div><div class="item"><span class="dot"></span>提醒</div><div class="item"><span class="dot"></span>设置</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- 添加弹层 -->
+<div class="frame">
+  <div class="frame-title"><b>底部弹层</b> · 拖拽把手 + 内联校验</div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>13:45</span><span>5G ▮▮▮</span></div>
+    <div style="flex:1;background:linear-gradient(180deg,rgba(40,56,78,.5),transparent);padding:14px;display:flex;align-items:flex-end">
+      <div style="width:100%">
+        <div class="card" style="background:var(--card2);border:none">
+          <div style="font-size:13px;color:var(--sub)">当前价 883.73 · 积存金</div>
+          <div style="font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums">50.00 g</div>
+        </div>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:14px">添加资产</div>
+      <div class="field">名称 <small>浙商积存金</small></div>
+      <div class="field" style="margin-top:10px">类型 <small>积存金 ▾</small></div>
+      <div class="field" style="margin-top:10px">克重 (g) <small>50.00</small></div>
+      <div class="field" style="margin-top:10px">买入单价 (元/g) <small>870.00</small></div>
+      <div class="err" style="display:none"></div>
+      <div class="btn" style="margin-top:16px">保存</div>
+      <div style="font-size:10px;color:var(--sub);text-align:center;margin-top:10px">总成本 = 克重 × 单价</div>
+    </div>
+  </div></div>
+</div>
+
+</div>
+<div style="max-width:1500px;margin:28px auto 0;color:var(--sub);font-size:12px;line-height:2">
+  📄 完整方案见 <code style="color:var(--gold)">docs/app-redesign-v2.md</code> 与 <code style="color:var(--gold)">docs/market-page-redesign-v2.md</code>
+  · 收益口径：持仓收益 = 现价×克重−成本；今日盈亏 = (现价−昨收)×克重；累计收益 = 卖出净得+市值−成本
+</div>
+</body>
+</html>

@@ -8,17 +8,105 @@ import 'package:goldpulse/constants/app_theme.dart';
 
 class PriceLineChart extends StatelessWidget {
   final List<FlSpot> spots;
-  const PriceLineChart({super.key, required this.spots});
+  final List<DateTime> times; // 与 spots 等长的采样时间（时间轴刻度 + 触摸气泡）
+  final String Function(DateTime)? timeFormatter; // 默认 HH:mm，长周期可传 MM-DD
+  const PriceLineChart({super.key, required this.spots, required this.times, this.timeFormatter});
 
   @override
   Widget build(BuildContext context) {
+    if (spots.isEmpty) return const SizedBox.shrink();
+    final ys = spots.map((s) => s.y).toList();
+    final minY = ys.reduce((a, b) => a < b ? a : b) * 0.995;
+    final maxY = ys.reduce((a, b) => a > b ? a : b) * 1.005;
+    final fmt = timeFormatter ?? _fmtTime;
+    // 时间轴约 4-5 档刻度
+    final tickEvery = (spots.length / 4).ceil().clamp(1, 1 << 30);
     return LineChart(LineChartData(
-      minY: spots.isEmpty ? 0 : (spots.map((s) => s.y).reduce((a, b) => a < b ? a : b) * 0.99),
-      maxY: spots.isEmpty ? 1 : (spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) * 1.01),
-      lineBarsData: [LineChartBarData(spots: spots, color: AppTheme.gold, isCurved: true, dotData: const FlDotData(show: false))],
-      gridData: const FlGridData(show: true, drawVerticalLine: false),
-      titlesData: const FlTitlesData(leftTitles: AxisTitles(), topTitles: AxisTitles(), rightTitles: AxisTitles()),
+      minY: minY,
+      maxY: maxY,
+      clipData: const FlClipData.all(),
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        getDrawingHorizontalLine: (_) => FlLine(
+            color: AppTheme.divider.withValues(alpha: 0.4), strokeWidth: 1),
+      ),
+      borderData: FlBorderData(show: false),
+      titlesData: FlTitlesData(
+        topTitles: const AxisTitles(),
+        rightTitles: const AxisTitles(),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 52,
+            interval: (maxY - minY) / 4,
+            getTitlesWidget: (v, meta) => Text(
+              v.toStringAsFixed(1),
+              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+            ),
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 24,
+            interval: tickEvery.toDouble(),
+            getTitlesWidget: (v, meta) {
+              final i = v.round();
+              if (i < 0 || i >= times.length) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(fmt(times[i]),
+                    style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+              );
+            },
+          ),
+        ),
+      ),
+      lineBarsData: [
+        LineChartBarData(
+          spots: spots,
+          color: AppTheme.gold,
+          isCurved: true,
+          barWidth: 2,
+          dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                AppTheme.gold.withValues(alpha: 0.25),
+                AppTheme.gold.withValues(alpha: 0.02),
+              ],
+            ),
+          ),
+        ),
+      ],
+      lineTouchData: LineTouchData(
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => AppTheme.cardHighlight,
+          tooltipBorderRadius: BorderRadius.circular(10),
+          getTooltipItems: (touched) => touched.map((t) {
+            final i = t.x.round();
+            final label = (i >= 0 && i < times.length) ? fmt(times[i]) : '';
+            return LineTooltipItem(
+              '${t.y.toStringAsFixed(2)} 元/g\n$label',
+              const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()]),
+            );
+          }).toList(),
+        ),
+      ),
     ));
+  }
+
+  static String _fmtTime(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}';
   }
 }
 

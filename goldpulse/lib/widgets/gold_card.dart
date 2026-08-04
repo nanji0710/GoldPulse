@@ -50,35 +50,45 @@ class GoldCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontSize: 15, color: AppTheme.textSecondary, letterSpacing: 0.5)),
               if (statusLabel != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: trading
-                        ? AppTheme.gold.withValues(alpha: 0.14)
-                        : AppTheme.divider.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: trading ? AppTheme.gold : AppTheme.offline,
-                      ),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: trading
+                          ? AppTheme.gold.withValues(alpha: 0.14)
+                          : AppTheme.divider.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    const SizedBox(width: 6),
-                    Text(statusLabel!,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: trading ? AppTheme.gold : AppTheme.textSecondary,
-                            fontWeight: FontWeight.w600)),
-                    if (statusHint != null) ...[
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: trading ? AppTheme.gold : AppTheme.offline,
+                        ),
+                      ),
                       const SizedBox(width: 6),
-                      Text(statusHint!,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppTheme.textSecondary)),
-                    ],
-                  ]),
+                      Flexible(
+                        child: Text(statusLabel!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: trading ? AppTheme.gold : AppTheme.textSecondary,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      if (statusHint != null) ...[
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(statusHint!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: AppTheme.textSecondary)),
+                        ),
+                      ],
+                    ]),
+                  ),
                 ),
             ],
           ),

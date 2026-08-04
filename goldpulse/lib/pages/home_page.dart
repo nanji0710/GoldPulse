@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:goldpulse/app.dart';
 import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/services/market_hours.dart';
 import 'package:goldpulse/state/asset_provider.dart';
@@ -78,17 +79,44 @@ class HomePage extends ConsumerWidget {
                 grams: summary.holding.amount,
                 avgCost: summary.avgCost,
                 floatingProfit: summary.floatingProfit,
+                todayProfit: summary.todayProfit,
+                cumulativeProfit: summary.cumulativeProfit,
                 profitRate: summary.profitRate,
               )
             else
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 ),
-                child: Text('点击「资产」录入你的第一笔持仓',
-                    style: Theme.of(context).textTheme.bodyMedium),
+                child: Row(children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.gold.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.account_balance_wallet_outlined,
+                        size: 22, color: AppTheme.gold),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('还没有持仓，录入第一笔黄金持仓即可查看收益',
+                        style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.gold,
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onPressed: () =>
+                        ref.read(shellTabProvider.notifier).state = 2, // 资产页
+                    child: const Text('去添加'),
+                  ),
+                ]),
               ),
             const SizedBox(height: 10),
             const _NextRefreshLine(),
