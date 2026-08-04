@@ -16,14 +16,87 @@ class HoldingListTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final price = ref
+        .watch(holding.kind == 'accumulation'
+            ? accumulationPriceProvider
+            : priceProvider)
+        .valueOrNull;
+    final sells = ref.watch(holdingTradesProvider(holding.id)).valueOrNull ??
+        const <TradeRecord>[];
+    final avgCost = Calculator.avgCost(holding.totalCost, holding.amount);
+
+    // 三口径收益：行情缺失（null）时全部显示 '--'，不配色。
+    double? floating;
+    double? today;
+    double? cumulative;
+    if (price != null) {
+      floating =
+          Calculator.floatingProfit(price.price, holding.amount, holding.totalCost);
+      today = Calculator.todayProfit(price.price, price.preClose, holding.amount);
+      cumulative = Calculator.cumulativeProfit(
+        currentPrice: price.price,
+        amount: holding.amount,
+        totalCost: holding.totalCost,
+        sellTrades: sells,
+      );
+    }
+
     return Card(
       color: AppTheme.card,
-      child: ListTile(
-        title: Text(holding.name),
-        subtitle: Text('${fmtGrams(holding.amount)}g · 成本 ${fmtPrice(Calculator.avgCost(holding.totalCost, holding.amount))} 元/g',
-            style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
-        trailing: const Icon(Icons.chevron_right),
+      child: InkWell(
         onLongPress: () => _showActions(context, ref),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 标题行：名称 + 浮动盈亏胶囊 + 箭头
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(holding.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontSize: 14)),
+                  ),
+                  const SizedBox(width: 8),
+                  _ProfitPill(value: floating),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right,
+                      size: 18, color: AppTheme.textSecondary),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${fmtGrams(holding.amount)}g · 成本 ${fmtPrice(avgCost)} 元/g',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Divider(color: AppTheme.divider, height: 1),
+              // 底部三口径：持仓收益 / 今日盈亏 / 累计收益（等宽三列）
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                        child: _MetricColumn(label: '持仓收益', value: floating)),
+                    Expanded(
+                        child: _MetricColumn(label: '今日盈亏', value: today)),
+                    Expanded(
+                        child: _MetricColumn(label: '累计收益', value: cumulative)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -143,6 +216,73 @@ class HoldingListTile extends ConsumerWidget {
 
   void _showSnack(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+/// 浮动盈亏胶囊：▲/▼ + 带符号金额（红涨绿跌；行情缺失显示 '--'）。
+class _ProfitPill extends StatelessWidget {
+  final double? value;
+  const _ProfitPill({this.value});
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    final color = v == null ? AppTheme.textSecondary : arrowColor(v);
+    final text = v == null
+        ? '--'
+        : '${arrow(v)} ${v >= 0 ? '+' : '-'}${fmtAmount(v.abs())}';
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 132),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 三口径收益列：标签 + 带符号金额（红涨绿跌；行情缺失显示 '--'）。
+class _MetricColumn extends StatelessWidget {
+  final String label;
+  final double? value;
+  const _MetricColumn({required this.label, this.value});
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    final color = v == null ? AppTheme.textSecondary : arrowColor(v);
+    final text =
+        v == null ? '--' : '${v >= 0 ? '+' : '-'}${fmtAmount(v.abs())} 元';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 3),
+        Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontSize: 14,
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+        ),
+      ],
+    );
   }
 }
 

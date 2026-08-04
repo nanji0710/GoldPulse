@@ -14,6 +14,12 @@ final holdingsProvider = FutureProvider<List<Holding>>((ref) => ref.watch(holdin
 
 final tradeDaoProvider = Provider((ref) => TradeDao());
 
+/// 单持仓交易记录（资产页持仓卡片「累计收益」计算）。
+/// autoDispose：仅在资产列表可见时存在，离开页面即释放。
+final holdingTradesProvider =
+    FutureProvider.autoDispose.family<List<TradeRecord>, int>(
+        (ref, holdingId) => ref.watch(tradeDaoProvider).listByHolding(holdingId));
+
 /// 新增持仓（首次引导/资产页）。
 final addHoldingProvider = FutureProvider.family<void, Holding>((ref, holding) async {
   await ref.read(holdingDaoProvider).insert(holding);

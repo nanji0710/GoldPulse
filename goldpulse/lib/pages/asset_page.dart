@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/models/holding.dart';
 import 'package:goldpulse/state/holding_provider.dart';
+import 'package:goldpulse/widgets/empty_state.dart';
 import 'package:goldpulse/widgets/holding_list_tile.dart';
 
 class AssetPage extends ConsumerWidget {
@@ -24,19 +25,12 @@ class AssetPage extends ConsumerWidget {
         ],
       ),
       body: holdings.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.account_balance_wallet_outlined,
-                      size: 56, color: AppTheme.textSecondary),
-                  const SizedBox(height: 12),
-                  const Text('还没有持仓记录'),
-                  const SizedBox(height: 4),
-                  Text('点击右上角 + 添加你的第一笔黄金持仓',
-                      style: Theme.of(context).textTheme.bodyMedium),
-                ],
-              ),
+          ? EmptyState(
+              icon: Icons.account_balance_wallet_outlined,
+              title: '还没有持仓记录',
+              description: '点击下方按钮添加你的第一笔黄金持仓，立即查看三口径收益',
+              actionLabel: '添加第一笔持仓',
+              onAction: () => _showAddHoldingSheet(context, ref),
             )
           : ListView.builder(
               itemCount: holdings.length,
@@ -108,7 +102,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 20, right: 20, top: 20,
+        left: 20, right: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
       ),
       child: Form(
@@ -117,6 +111,18 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 拖拽把手：36×4 圆条，居中，顶部 ~10px 间距
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(top: 10, bottom: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.divider,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
             Text('添加资产', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             TextFormField(
