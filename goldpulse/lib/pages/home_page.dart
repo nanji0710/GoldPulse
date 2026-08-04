@@ -9,6 +9,7 @@ import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/services/market_hours.dart';
 import 'package:goldpulse/state/asset_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
+import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/gold_card.dart';
 import 'package:goldpulse/widgets/profit_card.dart';
 
@@ -29,7 +30,11 @@ class HomePage extends ConsumerWidget {
   const HomePage({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref.watch(assetSummaryProvider).value;
+    final typeSummaries =
+        ref.watch(typeSummariesProvider).value ?? const <TypeAssetSummary>[];
+    final totalSummary = ref.watch(totalAssetSummaryProvider).value;
+    // 仅渲染有实时行情的品种卡（无行情展示收益会误导）；合计卡恒渲染。
+    final quoted = typeSummaries.where((t) => t.currentPrice != null).toList();
     final price = ref.watch(priceProvider).value;                 // Au9999
     final accPrice = ref.watch(accumulationPriceProvider).value;  // 浙商积存金
     final icbcPrice = ref.watch(icbcPriceProvider).value;         // 工商积存金
@@ -91,17 +96,7 @@ class HomePage extends ConsumerWidget {
             else
               _loadingCard(context, onRetry: () => refreshAllQuotes(ref)),
             const SizedBox(height: 14),
-            if (summary != null)
-              ProfitCard(
-                name: summary.holding.name,
-                grams: summary.holding.amount,
-                avgCost: summary.avgCost,
-                floatingProfit: summary.floatingProfit,
-                todayProfit: summary.todayProfit,
-                cumulativeProfit: summary.cumulativeProfit,
-                profitRate: summary.profitRate,
-              )
-            else
+            if (typeSummaries.isEmpty)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -135,7 +130,42 @@ class HomePage extends ConsumerWidget {
                     child: const Text('去添加'),
                   ),
                 ]),
-              ),
+              )
+            else ...[
+              // 每品种一张收益卡（仅实时行情非空），卡片间 14px 间距
+              for (var i = 0; i < quoted.length; i++) ...[
+                if (i > 0) const SizedBox(height: 14),
+                ProfitCard(
+                  name: quoted[i].label,
+                  grams: quoted[i].totalGrams,
+                  avgCost: quoted[i].avgCost,
+                  floatingProfit: quoted[i].floatingProfit,
+                  todayProfit: quoted[i].todayProfit,
+                  cumulativeProfit: quoted[i].cumulativeProfit,
+                  profitRate: quoted[i].totalCost == 0
+                      ? 0
+                      : quoted[i].floatingProfit / quoted[i].totalCost,
+                  gramsHint:
+                      '${fmtGrams(quoted[i].totalGrams)}g · 均价 ${fmtPrice(quoted[i].avgCost)} 元/g',
+                ),
+              ],
+              // 全部持仓合计卡（聚合口径，无独立行情）
+              if (totalSummary != null) ...[
+                if (quoted.isNotEmpty) const SizedBox(height: 14),
+                ProfitCard(
+                  name: '全部持仓',
+                  grams: totalSummary.totalGrams,
+                  avgCost: totalSummary.avgCost,
+                  floatingProfit: totalSummary.floatingProfit,
+                  todayProfit: totalSummary.todayProfit,
+                  cumulativeProfit: totalSummary.cumulativeProfit,
+                  profitRate: totalSummary.totalCost == 0
+                      ? 0
+                      : totalSummary.floatingProfit / totalSummary.totalCost,
+                  gramsHint: '${totalSummary.holdingCount} 个品种',
+                ),
+              ],
+            ],
             const SizedBox(height: 10),
             const _NextRefreshLine(),
           ],

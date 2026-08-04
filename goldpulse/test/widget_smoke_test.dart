@@ -8,6 +8,7 @@ import 'package:goldpulse/pages/asset_page.dart';
 import 'package:goldpulse/pages/home_page.dart';
 import 'package:goldpulse/pages/market_page.dart';
 import 'package:goldpulse/pages/onboarding_page.dart';
+import 'package:goldpulse/state/asset_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
 
 // 用 override 注入固定行情（单一时刻，避免轮询死循环）
@@ -133,5 +134,67 @@ void main() {
     // 实时流为空 → 头卡与当日四字段均不出现真实价格（'--' 兜底）
     expect(find.text('--'), findsWidgets);
     expect(find.text('776.70'), findsNothing);
+  });
+
+  testWidgets('首页收益区：每品种收益卡 + 全部持仓合计卡', (tester) async {
+    // ListView 懒加载：加高视口让下方收益卡全部渲染，否则卡片会低于视口而不构建。
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // 注入固定品种汇总与合计（绕过真实 DB）；行情轮询给空流以免真实 dio 抛错。
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        typeSummariesProvider.overrideWith((ref) async => [
+              const TypeAssetSummary(
+                kind: 'accumulation',
+                label: '浙商积存金',
+                totalGrams: 50,
+                totalCost: 43500,
+                avgCost: 870,
+                currentPrice: 880,
+                preClose: 875,
+                floatingProfit: 500,
+                todayProfit: 250,
+                cumulativeProfit: 1200,
+                holdingCount: 1,
+              ),
+              const TypeAssetSummary(
+                kind: 'icbc',
+                label: '工商积存金',
+                totalGrams: 20,
+                totalCost: 17400,
+                avgCost: 870,
+                currentPrice: 860,
+                preClose: 865,
+                floatingProfit: -200,
+                todayProfit: -100,
+                cumulativeProfit: 300,
+                holdingCount: 1,
+              ),
+            ]),
+        totalAssetSummaryProvider.overrideWith((ref) async => const TypeAssetSummary(
+              kind: 'all',
+              label: '全部持仓',
+              totalGrams: 70,
+              totalCost: 60900,
+              avgCost: 870,
+              floatingProfit: 300,
+              todayProfit: 150,
+              cumulativeProfit: 1500,
+              holdingCount: 2,
+            )),
+      ],
+      child: const MaterialApp(home: HomePage()),
+    ));
+    await tester.pump();
+    await tester.pump();
+    // 三行情卡此时均为空流加载态（不显示品种名），卡片标题即来自收益卡
+    expect(find.text('浙商积存金'), findsOneWidget);
+    expect(find.text('工商积存金'), findsOneWidget);
+    expect(find.text('全部持仓'), findsOneWidget);
   });
 }

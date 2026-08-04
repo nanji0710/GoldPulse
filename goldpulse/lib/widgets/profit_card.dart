@@ -12,6 +12,9 @@ class ProfitCard extends StatelessWidget {
   final double todayProfit;    // 今日盈亏
   final double cumulativeProfit; // 累计收益
   final double profitRate;
+  /// 可选持仓明细单行文案（如 '50.0000g · 均价 870.00 元/g'）。
+  /// 提供时替换「持仓/平均成本」两列指标行；为 null 时维持原两列展示。
+  final String? gramsHint;
   const ProfitCard({
     super.key,
     this.name = '浙商积存金',
@@ -21,6 +24,7 @@ class ProfitCard extends StatelessWidget {
     required this.todayProfit,
     required this.cumulativeProfit,
     required this.profitRate,
+    this.gramsHint,
   });
 
   @override
@@ -54,14 +58,19 @@ class ProfitCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          // 持仓明细
-          Row(
-            children: [
-              _Metric(label: '持仓', value: '${fmtGrams(grams)}g'),
-              const SizedBox(width: 24),
-              _Metric(label: '平均成本', value: '${fmtPrice(avgCost)} 元/g'),
-            ],
-          ),
+          // 持仓明细：gramsHint 提供时单行展示，否则维持「持仓/平均成本」两列
+          if (gramsHint != null)
+            Text(gramsHint!,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 15, fontFeatures: const [FontFeature.tabularFigures()]))
+          else
+            Row(
+              children: [
+                _Metric(label: '持仓', value: '${fmtGrams(grams)}g'),
+                const SizedBox(width: 24),
+                _Metric(label: '平均成本', value: '${fmtPrice(avgCost)} 元/g'),
+              ],
+            ),
           const SizedBox(height: 16),
           const Divider(color: AppTheme.divider, height: 1),
           const SizedBox(height: 14),
