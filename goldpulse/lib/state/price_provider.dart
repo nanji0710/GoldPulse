@@ -1,6 +1,7 @@
 // lib/state/price_provider.dart
 // 行情全局状态：价格轮询 StreamProvider + 依赖注入入口。
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,6 +70,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final notifications = ref.watch(notificationsPluginProvider);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('SGE-Au(T+D)');
+  debugPrint('[金脉行情] Au9999 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
   var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
@@ -79,6 +81,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
       try {
         final fresh = await api.fetchGoldPriceWithFallback('SGE-Au(T+D)');
         if (fresh != null) {
+          debugPrint('[金脉行情] Au9999 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
           await dao.insert(fresh);
           last = fresh;
           // 前台告警判定：行情轮询收到新价即触发提醒判定，
@@ -110,6 +113,8 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
     // 尚无任何数据时（新装/清库/首拉失败）用 30s 快速重试，直到首次成功；
     // 已有缓存后恢复配置间隔（省电）。
     final delay = last == null ? const Duration(seconds: 30) : interval;
+    debugPrint('[金脉行情] Au9999 下次调度 ${delay.inSeconds}s'
+        ' (${last == null ? "快速重试" : "正常间隔"})');
     nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
     await Future.delayed(delay);
   }
@@ -125,6 +130,7 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
   final isTradingNow = ref.watch(isTradingNowProvider);
   final nextRefresh = ref.watch(nextRefreshProvider.notifier);
   GoldPrice? last = await dao.latest('CZB-JCJ');
+  debugPrint('[金脉行情] 积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
   yield last;
   var firstRun = true; // 流启动（应用打开/下拉刷新）总是立即强拉一次最新价
   while (true) {
@@ -134,6 +140,7 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
         // 降级链：京东积存金 → 东方财富 Au9999 参考价 → 新浪。
         final fresh = await api.fetchAccumulationPriceWithFallback();
         if (fresh != null) {
+          debugPrint('[金脉行情] 积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
           await dao.insert(fresh);
           last = fresh;
         }
@@ -143,6 +150,8 @@ final accumulationPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
     }
     yield last;
     final delay = last == null ? const Duration(seconds: 30) : interval;
+    debugPrint('[金脉行情] 积存金 下次调度 ${delay.inSeconds}s'
+        ' (${last == null ? "快速重试" : "正常间隔"})');
     nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
     await Future.delayed(delay);
   }

@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 访问行情接口必需。仅 debug 清单声明 INTERNET 是 Flutter 的默认模板行为，
+         正式 release 包必须在此显式声明，否则发布版完全无法联网（DNS 秒失败）。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Android 13+（API 33）展示通知需 POST_NOTIFICATIONS 运行时权限。
          flutter_local_notifications 插件自带该声明（manifest 合并），此处显式声明以自文档化。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

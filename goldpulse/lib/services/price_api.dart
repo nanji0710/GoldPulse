@@ -3,8 +3,13 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/gold_price.dart';
+
+/// 行情诊断日志（release 构建同样输出到 logcat，tag=flutter），
+/// 排查"行情加载中/降级切换"问题不再依赖截图，直接读日志。
+void _log(String msg) => debugPrint('[金脉行情] $msg');
 
 class ApiException implements Exception {
   final String message;
@@ -123,22 +128,35 @@ class PriceApi {
   Future<GoldPrice?> fetchGoldPriceWithFallback(String code) async {
     try {
       final gp = await fetchGoldPrice(code);
-      if (gp != null) return gp;
-    } on ApiException {
-      // 京东不可用 → 东方财富。
+      if (gp != null) {
+        _log('Au9999 主源京东成功: ${gp.price} 元/g @${gp.time}');
+        return gp;
+      }
+      _log('Au9999 京东返回空数据（无价格字段），继续降级');
+    } on ApiException catch (e) {
+      _log('Au9999 京东失败: ${e.message}');
     }
     try {
       final gp = await _eastmoneyPrice(code: code);
-      if (gp != null) return gp;
-    } on DioException {
-      // 东方财富不可用 → 新浪。
+      if (gp != null) {
+        _log('Au9999 备用东方财富成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('Au9999 东方财富返回空数据，继续降级');
+    } on DioException catch (e) {
+      _log('Au9999 东方财富失败: ${e.message}');
     }
     try {
       final gp = await _sinaPrice(code: code);
-      if (gp != null) return gp;
-    } on DioException {
-      // 全部备用源不可用。
+      if (gp != null) {
+        _log('Au9999 兜底新浪成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('Au9999 新浪返回空数据');
+    } on DioException catch (e) {
+      _log('Au9999 新浪失败: ${e.message}');
     }
+    _log('Au9999 全部行情源失败');
     return null;
   }
 
@@ -147,22 +165,35 @@ class PriceApi {
   Future<GoldPrice?> fetchAccumulationPriceWithFallback() async {
     try {
       final gp = await fetchAccumulationPrice();
-      if (gp != null) return gp;
-    } on ApiException {
-      // 京东不可用 → 东方财富（Au9999 参考价，积存金通常紧跟 Au9999 波动）。
+      if (gp != null) {
+        _log('积存金 主源京东成功: ${gp.price} 元/g @${gp.time}');
+        return gp;
+      }
+      _log('积存金 京东返回空数据（无价格字段），继续降级');
+    } on ApiException catch (e) {
+      _log('积存金 京东失败: ${e.message}');
     }
     try {
       final gp = await _eastmoneyPrice(code: 'CZB-JCJ', source: 'Au9999 参考');
-      if (gp != null) return gp;
-    } on DioException {
-      // 东方财富不可用 → 新浪。
+      if (gp != null) {
+        _log('积存金 备用东方财富(Au9999 参考)成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('积存金 东方财富返回空数据，继续降级');
+    } on DioException catch (e) {
+      _log('积存金 东方财富失败: ${e.message}');
     }
     try {
       final gp = await _sinaPrice(code: 'CZB-JCJ', source: '新浪');
-      if (gp != null) return gp;
-    } on DioException {
-      // 全部备用源不可用。
+      if (gp != null) {
+        _log('积存金 兜底新浪成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('积存金 新浪返回空数据');
+    } on DioException catch (e) {
+      _log('积存金 新浪失败: ${e.message}');
     }
+    _log('积存金 全部行情源失败');
     return null;
   }
 
