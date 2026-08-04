@@ -7,6 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'app.dart';
+import 'database/alert_dao.dart';
+import 'database/app_database.dart';
+import 'database/holding_dao.dart';
+import 'services/alert_service.dart';
+import 'services/background_alert.dart';
+import 'services/price_api.dart';
 import 'state/alert_provider.dart';
 import 'state/price_provider.dart';
 
@@ -42,10 +48,25 @@ Future<void> main() async {
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    // 后台任务：拉最新价 → 对启用的提醒做判定 → 命中则通知。
-    // 复用 PriceApi/AlertDao/AlertService，需在 background isolate 中独立初始化 sqflite
-    // （openDatabase 直接打开文件路径，参考 workmanager 官方文档）。
-    // MVP 范围：仅注册任务并返回成功，真实后台抓取留待后续细化。
+    try {
+      // 后台任务：拉最新价 → 对启用的提醒做判定 → 命中则通知。
+      // background isolate 与主 isolate 相互独立，需在此独立初始化
+      // 通知插件与 sqflite（AppDatabase.database 打开文件路径数据库，参考其现有打开模式）。
+      final dio = Dio(BaseOptions(headers: {'User-Agent': 'goldpulse/1.0'}));
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher')));
+      await AppDatabase.database; // 确保数据库已打开（独立 isolate 内各自初始化）
+      await runBackgroundAlertCheck(
+        api: PriceApi(dio: dio),
+        alertDao: AlertDao(),
+        holdingDao: HoldingDao(),
+        showNotification: (title, body) =>
+            AlertService.showNotification(plugin, title, body),
+      );
+    } catch (_) {
+      // 后台任务失败静默，不得崩溃（runBackgroundAlertCheck 内部已有兜底）。
+    }
     return Future.value(true);
   });
 }
