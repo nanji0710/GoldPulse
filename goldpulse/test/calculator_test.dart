@@ -46,4 +46,41 @@ void main() {
         record: TradeRecord(holdingId: 1, type: 'sell', amount: 50, price: 720, fee: 0, time: 1)),
         throwsArgumentError);
   });
+  test('todayProfit: 上涨为正', () {
+    expect(Calculator.todayProfit(781.5, 780.0, 501.2), closeTo(751.80, 0.01));
+  });
+  test('todayProfit: 下跌为负', () {
+    expect(Calculator.todayProfit(778.5, 780.0, 100), closeTo(-150.0, 0.01));
+  });
+  test('todayProfit: 平盘为零', () {
+    expect(Calculator.todayProfit(780.0, 780.0, 501.2), closeTo(0, 0.0001));
+  });
+  test('sellNetProceeds: 多卖单净收入 = Σ(克重×价 − 手续费)', () {
+    final sells = [
+      TradeRecord(holdingId: 1, type: 'sell', amount: 100, price: 780.20, fee: 312.08, time: 1),
+      TradeRecord(holdingId: 1, type: 'sell', amount: 50, price: 800, fee: 160, time: 2),
+    ];
+    // (100×780.20−312.08) + (50×800−160) = 77707.92 + 39840
+    expect(Calculator.sellNetProceeds(sells), closeTo(117547.92, 0.01));
+  });
+  test('cumulativeProfit: 无卖出时等于浮动收益', () {
+    expect(Calculator.cumulativeProfit(
+        currentPrice: 781.5, amount: 501.2, totalCost: 310000, sellTrades: const []),
+        closeTo(Calculator.floatingProfit(781.5, 501.2, 310000), 0.001));
+  });
+  test('cumulativeProfit: 全部卖出为纯已实现 = 卖出净得 − 总成本', () {
+    final sells = [TradeRecord(holdingId: 1, type: 'sell', amount: 500, price: 780.20, fee: 312.08, time: 1)];
+    // 卖出净得 500×780.20−312.08 = 389787.92；− 总成本 310000 = 79787.92
+    expect(Calculator.cumulativeProfit(
+        currentPrice: 780.2, amount: 0, totalCost: 310000, sellTrades: sells),
+        closeTo(79787.92, 0.01));
+  });
+  test('cumulativeProfit: 部分卖出 = 已实现 + 未实现', () {
+    // 原持仓 501.2g、总成本 310000，卖出 50g@720（手续费 144），剩 451.2g。
+    final sells = [TradeRecord(holdingId: 1, type: 'sell', amount: 50, price: 720, fee: 144, time: 1)];
+    // 卖出净得 35856 + 剩余市值 781.5×451.2 = 352612.8 − 310000 = 78468.8
+    expect(Calculator.cumulativeProfit(
+        currentPrice: 781.5, amount: 451.2, totalCost: 310000, sellTrades: sells),
+        closeTo(78468.8, 0.01));
+  });
 }
