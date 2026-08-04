@@ -18,6 +18,12 @@ final saveAlertProvider = FutureProvider.family<void, Alert>((ref, alert) async 
   ref.invalidate(alertsProvider);
 });
 
+/// 删除提醒：删除后 invalidate 列表，页面立即刷新。
+final deleteAlertProvider = FutureProvider.family<void, int>((ref, id) async {
+  await ref.read(alertDaoProvider).delete(id);
+  ref.invalidate(alertsProvider);
+});
+
 /// 轮询判定：由行情刷新/WorkManager 触发。
 final checkAlertsProvider = FutureProvider.family<void, ({double price, double assetValue, double totalCost})>(
     (ref, ctx) => runAlertChecks(

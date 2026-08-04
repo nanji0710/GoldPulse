@@ -80,18 +80,57 @@ class _AlertTile extends ConsumerWidget {
     );
   }
 
+  /// 删除确认：红色确认按钮，确认后走 deleteAlertProvider 并刷新列表。
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除提醒'),
+        content: const Text('确定要删除这条提醒吗？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.up),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await ref.read(deleteAlertProvider(alert.id).future);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    Future<void> toggle(bool value) async {
+      await ref.read(alertDaoProvider).toggle(alert.id, value);
+      ref.invalidate(alertsProvider);
+    }
+
     return Card(
       color: AppTheme.card,
-      child: SwitchListTile(
-        secondary: _typeIcon(alert.type),
+      child: ListTile(
+        leading: _typeIcon(alert.type),
         title: Text(AlertService.describe(alert)),
-        value: alert.enable,
-        onChanged: (value) async {
-          await ref.read(alertDaoProvider).toggle(alert.id, value);
-          ref.invalidate(alertsProvider);
-        },
+        // 保留原 SwitchListTile 的点按整行切换开关的交互；trailing 增删删除入口。
+        onTap: () => toggle(!alert.enable),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: alert.enable,
+              onChanged: (v) => toggle(v),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              color: AppTheme.up,
+              tooltip: '删除提醒',
+              onPressed: () => _confirmDelete(context, ref),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -162,8 +201,9 @@ class _AddAlertSheetState extends ConsumerState<_AddAlertSheet> {
             controller: _targetController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: '目标值',
-              hintText: '例如 800',
+              // profit_target 的目标是收益金额，标签文案澄清语义；数值仍为 target。
+              labelText: _type == 'profit_target' ? '收益目标（元）' : '目标值',
+              hintText: _type == 'profit_target' ? '例如 5000' : '例如 800',
               errorText: _targetError,
             ),
             onChanged: (_) {

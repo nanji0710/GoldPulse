@@ -10,7 +10,7 @@ class AlertService {
     switch (a.type) {
       case 'price_up': return price >= a.target;
       case 'price_down': return price <= a.target;
-      case 'profit_target': return assetValue >= a.target;
+      case 'profit_target': return (assetValue - totalCost) >= a.target;
       default: return false;
     }
   }
@@ -18,7 +18,7 @@ class AlertService {
   static String describe(Alert a) => switch (a.type) {
         'price_up' => 'Au9999 价格 ≥ ${a.target.toStringAsFixed(2)} 元/g',
         'price_down' => 'Au9999 价格 ≤ ${a.target.toStringAsFixed(2)} 元/g',
-        'profit_target' => '黄金资产 ≥ ${a.target.toStringAsFixed(0)} 元',
+        'profit_target' => '收益 ≥ ${a.target.toStringAsFixed(0)} 元',
         _ => '未知提醒',
       };
 

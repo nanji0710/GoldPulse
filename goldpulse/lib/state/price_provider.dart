@@ -81,7 +81,7 @@ final priceProvider = StreamProvider<GoldPrice?>((ref) async* {
         await dao.insert(fresh);
         last = fresh;
         // 前台告警判定：行情轮询收到新价即触发提醒判定，
-        // 价格（price_up/price_down）与资产（profit_target）命中即本地通知。
+        // 价格（price_up/price_down）与收益（profit_target，资产-成本）命中即本地通知。
         // 后台 isolate 抓取判定仍为未来细化（见 main.dart callbackDispatcher 注释）。
         try {
           var assetValue = 0.0;

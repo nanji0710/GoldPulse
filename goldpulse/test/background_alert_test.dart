@@ -64,11 +64,13 @@ void main() {
     expect(notifier.notifications.single.$2, 'Au9999 价格 ≥ 800.00 元/g');
   });
 
-  test('命中收益提醒：资产价值由 价格×克重 汇总后判定', () async {
+  test('命中收益提醒：收益（资产-成本）达标才触发', () async {
     final notifier = _RecordingNotifier();
     final api = _FixedApi(fixedPrice(850));
-    // 10g × 850 = 8500 元资产 → 收益提醒（目标 8000 元）命中。
-    await AlertDao().insert(Alert(type: 'profit_target', target: 8000, enable: true));
+    // 10g × 850 = 8500 元资产，成本 7500 → 收益 1000 元。
+    // 目标 1000 达标命中；目标 1500 收益不足不命中（总资产恒大但收益不足不再误触发）。
+    await AlertDao().insert(Alert(type: 'profit_target', target: 1000, enable: true));
+    await AlertDao().insert(Alert(type: 'profit_target', target: 1500, enable: true));
     await HoldingDao().insert(
         Holding(name: 'Au9999', kind: 'au9999', amount: 10, totalCost: 7500, createdAt: 1));
 
@@ -79,7 +81,8 @@ void main() {
       showNotification: notifier.call,
     );
 
-    expect(notifier.notifications.single.$2, '黄金资产 ≥ 8000 元');
+    expect(notifier.notifications, hasLength(1)); // 仅目标 1000 命中
+    expect(notifier.notifications.single.$2, '收益 ≥ 1000 元');
   });
 
   test('禁用提醒即使价格命中也不通知', () async {
