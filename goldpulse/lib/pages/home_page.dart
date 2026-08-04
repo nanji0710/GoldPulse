@@ -109,7 +109,7 @@ class HomePage extends ConsumerWidget {
                   FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.gold,
-                      minimumSize: const Size(0, 40),
+                      minimumSize: const Size(0, 44), // 触控目标 ≥44px
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     onPressed: () =>

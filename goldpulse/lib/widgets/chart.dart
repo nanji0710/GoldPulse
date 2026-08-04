@@ -86,7 +86,7 @@ class PriceLineChart extends StatelessWidget {
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
           getTooltipColor: (_) => AppTheme.cardHighlight,
-          tooltipBorderRadius: BorderRadius.circular(10),
+          tooltipRoundedRadius: 10, // fl_chart 0.69：圆角参数为 double
           getTooltipItems: (touched) => touched.map((t) {
             final i = t.x.round();
             final label = (i >= 0 && i < times.length) ? fmt(times[i]) : '';
@@ -179,20 +179,38 @@ class _CandlestickPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, bodyWidth * 0.12);
 
+    // 水平网格线：divider 色细线，画在 K 线之前。
+    final gridPaint = Paint()
+      ..color = AppTheme.divider.withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    for (var g = 0; g < 4; g++) {
+      final gy = size.height * g / 3;
+      canvas.drawLine(Offset(0, gy), Offset(size.width, gy), gridPaint);
+    }
+
     for (var i = 0; i < bars.length; i++) {
       final b = bars[i];
       final cx = step * i + step / 2;
       final color = b.close >= b.open ? upColor : downColor;
-      // 影线：high -> low
+      // 影线：high -> low（涨跌柱均保留）
       canvas.drawLine(Offset(cx, y(b.high)), Offset(cx, y(b.low)), wickPaint..color = color);
-      // 实体：open -> close（红涨实体上沿为 open、下沿为 close）
+      // 实体：open -> close
+      // 涨（close >= open）红实心填充；跌（close < open）绿仅描边空心（色盲友好）。
       var top = y(math.max(b.open, b.close));
       var bottom = y(math.min(b.open, b.close));
       if (bottom - top < 1.0) bottom = top + 1.0; // 十字星至少 1px 高
-      canvas.drawRect(
-        Rect.fromLTRB(cx - bodyWidth / 2, top, cx + bodyWidth / 2, bottom),
-        Paint()..color = color,
-      );
+      final bodyRect = Rect.fromLTRB(cx - bodyWidth / 2, top, cx + bodyWidth / 2, bottom);
+      if (b.close >= b.open) {
+        canvas.drawRect(bodyRect, Paint()..color = color);
+      } else {
+        canvas.drawRect(
+          bodyRect,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color = color,
+        );
+      }
     }
   }
 

@@ -32,7 +32,12 @@ class _MarketPageState extends ConsumerState<MarketPage> {
         future: dao.recent('SGE-Au(T+D)', limit: _pointsFor()),
         builder: (context, snap) {
           final rows = snap.data ?? <GoldPrice>[];
-          final spots = rows.reversed.indexed.map((e) => FlSpot(e.$1.toDouble(), e.$2.price)).toList();
+          final rowsR = rows.reversed.toList();
+          final spots =
+              rowsR.indexed.map((e) => FlSpot(e.$1.toDouble(), e.$2.price)).toList();
+          final times = rowsR
+              .map((e) => DateTime.fromMillisecondsSinceEpoch(e.time))
+              .toList();
           return Column(children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -66,7 +71,7 @@ class _MarketPageState extends ConsumerState<MarketPage> {
                                   groupSize: _groupSizeFor(),
                                 ),
                               )
-                            : PriceLineChart(spots: spots))),
+                            : PriceLineChart(spots: spots, times: times))),
           ]);
         },
       ),
