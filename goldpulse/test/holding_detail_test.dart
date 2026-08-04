@@ -213,7 +213,9 @@ void main() {
     expect(find.textContaining('手续费 0.00 元'), findsOneWidget);
   });
 
-  testWidgets('追加买入：克重与均价正确更新（默认价取现价）', (tester) async {
+  testWidgets('追加买入：单对话框同时输入克重与单价，价格可编辑且持仓正确更新', (
+    tester,
+  ) async {
     _useTallSurface(tester);
     final store = _Store()
       ..trades.addAll([
@@ -250,25 +252,25 @@ void main() {
     await _settle(tester);
     expect(find.byType(AlertDialog), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), '10');
-    await tester.tap(find.text('确定'));
-    await _settle(tester);
+    // 双字段渲染：克重 + 价格（默认预填当前行情价 620，double.toString() → '620.0'）。
+    expect(find.text('买入克重 (g)'), findsOneWidget);
+    expect(find.text('买入价格 (元/g)'), findsOneWidget);
+    final priceField = tester.widget<TextField>(find.byType(TextField).at(1));
+    expect(priceField.controller!.text, '620.0');
 
-    // 第二段：买入价格，默认预填当前行情价 620（double.toString() → '620.0'）。
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).controller!.text,
-      '620.0',
-    );
+    // 价格字段可编辑：改为自定义值 630（与默认不同），一对话框搞定买入。
+    await tester.enterText(find.byType(TextField).at(0), '10');
+    await tester.enterText(find.byType(TextField).at(1), '630');
     await tester.tap(find.text('确定'));
     await _settle(tester);
+    expect(find.byType(AlertDialog), findsNothing);
 
     expect(dao.holding.amount, 60); // 50 + 10
-    expect(dao.holding.totalCost, 36200); // 30000 + 10×620
+    expect(dao.holding.totalCost, 36300); // 30000 + 10×630
     expect(store.trades.length, 2); // 原买入 + 追加买入
     expect(store.trades.last.type, 'buy');
     expect(store.trades.last.amount, 10);
-    expect(store.trades.last.price, 620);
+    expect(store.trades.last.price, 630);
     expect(find.textContaining('60.0000g'), findsWidgets); // UI 克重刷新
   });
 

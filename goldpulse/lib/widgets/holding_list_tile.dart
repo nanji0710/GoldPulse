@@ -191,7 +191,7 @@ class HoldingListTile extends ConsumerWidget {
     }
   }
 
-  /// 追加买入：type=buy，克重 + 成交价（默认取该持仓品种现价），手续费 0。
+  /// 追加买入：type=buy，克重 + 买入单价（默认取该持仓品种现价，可编辑），手续费 0。
   Future<void> _buy(BuildContext context, WidgetRef ref) async {
     final provider = holding.kind == 'icbc'
         ? icbcPriceProvider
@@ -199,23 +199,16 @@ class HoldingListTile extends ConsumerWidget {
         ? accumulationPriceProvider
         : priceProvider;
     final current = ref.read(provider).value?.price;
-    final amount = await promptNumber(context, '追加买入', hint: '克重（如 50）');
-    if (amount == null || !context.mounted) return;
-    final price = await promptNumber(
-      context,
-      '买入价格',
-      hint: '成交价（元/g）',
-      initial: current?.toString(),
-    );
-    if (price == null || !context.mounted) return;
+    final result = await promptBuy(context, defaultPrice: current?.toString());
+    if (result == null || !context.mounted) return;
     try {
       await ref.read(
         recordTradeProvider(
           TradeRecord(
             holdingId: holding.id,
             type: 'buy',
-            amount: amount,
-            price: price,
+            amount: result.amount,
+            price: result.price,
             fee: 0,
             time: DateTime.now().millisecondsSinceEpoch,
           ),

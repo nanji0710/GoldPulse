@@ -81,24 +81,17 @@ class _HoldingDetailPageState extends ConsumerState<HoldingDetailPage> {
     }
   }
 
-  /// 追加买入：克重 + 成交价（默认该品种现价），手续费 0。
+  /// 追加买入：克重 + 买入单价（默认该品种现价），手续费 0。
   Future<void> _buy(Holding holding) async {
     final current = ref.read(_kindPriceProvider(holding.kind)).value?.price;
-    final amount = await promptNumber(context, '追加买入', hint: '克重（如 50）');
-    if (amount == null || !mounted) return;
-    final price = await promptNumber(
-      context,
-      '买入价格',
-      hint: '成交价（元/g）',
-      initial: current?.toString(),
-    );
-    if (price == null || !mounted) return;
+    final result = await promptBuy(context, defaultPrice: current?.toString());
+    if (result == null || !mounted) return;
     await _record(
       TradeRecord(
         holdingId: holding.id,
         type: 'buy',
-        amount: amount,
-        price: price,
+        amount: result.amount,
+        price: result.price,
         fee: 0,
         time: DateTime.now().millisecondsSinceEpoch,
       ),

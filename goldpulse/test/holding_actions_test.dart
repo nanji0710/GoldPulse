@@ -135,4 +135,48 @@ void main() {
     expect(dao.updatedAmounts.single, 10);
     expect(dao.trades.single.type, 'sell');
   });
+
+  testWidgets('追加买入：单对话框输入克重+价格，买入单价默认现价且可编辑', (tester) async {
+    final dao = _FakeHoldingDao(Holding(
+        id: 1,
+        name: '浙商积存金',
+        kind: 'accumulation',
+        amount: 50,
+        totalCost: 310000,
+        boughtCost: 310000,
+        createdAt: 1));
+    final stream = Stream<GoldPrice?>.value(GoldPrice(
+        code: 'CZB-JCJ', price: 780.2, change: 0, percent: 0, preClose: 780.2, time: 1));
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        holdingDaoProvider.overrideWithValue(dao),
+        accumulationPriceProvider.overrideWith((ref) => stream),
+      ],
+      child: MaterialApp(home: Scaffold(body: HoldingListTile(holding: dao.holding))),
+    ));
+    await tester.longPress(find.byType(HoldingListTile));
+    await _settle(tester);
+    await tester.tap(find.text('追加买入'));
+    await _settle(tester);
+
+    // 单个对话框同时渲染克重 + 价格两个字段。
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('买入克重 (g)'), findsOneWidget);
+    expect(find.text('买入价格 (元/g)'), findsOneWidget);
+
+    // 价格默认预填当前现价 780.2，且字段可编辑（改为自定义值 800）。
+    final priceField = tester.widget<TextField>(find.byType(TextField).at(1));
+    expect(priceField.controller!.text, '780.2');
+    await tester.enterText(find.byType(TextField).at(1), '800');
+    await tester.enterText(find.byType(TextField).at(0), '5');
+    await tester.tap(find.text('确定'));
+    await _settle(tester);
+
+    // recordTradeProvider 以录入值（而非默认价）发起买入。
+    expect(dao.trades.single.type, 'buy');
+    expect(dao.trades.single.amount, 5);
+    expect(dao.trades.single.price, 800);
+    expect(dao.updatedAmounts.single, 55); // 50 + 5
+  });
 }
