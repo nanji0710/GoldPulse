@@ -81,4 +81,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('780.20'), findsOneWidget); // 切回 Au9999 恢复实时价
   });
+
+  testWidgets('行情页当日统计卡：实时流填充日线字段显示四值', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(GoldPrice(
+            code: 'Au9999',
+            price: 780.20,
+            change: 3.50,
+            percent: 0.45,
+            preClose: 776.70,
+            openPrice: 777.00,
+            highPrice: 781.50,
+            lowPrice: 775.20,
+            time: 1))),
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: MarketPage()),
+    ));
+    await tester.pumpAndSettle();
+    // 当日统计卡标签与四字段值（fmtPrice 两位小数）
+    expect(find.text('当日统计 · 实时行情'), findsOneWidget);
+    expect(find.text('当日最高'), findsOneWidget);
+    expect(find.text('当日最低'), findsOneWidget);
+    expect(find.text('当日开盘'), findsOneWidget);
+    expect(find.text('昨收'), findsOneWidget);
+    expect(find.text('781.50'), findsOneWidget); // 当日最高
+    expect(find.text('775.20'), findsOneWidget); // 当日最低
+    expect(find.text('777.00'), findsOneWidget); // 当日开盘
+    expect(find.text('776.70'), findsOneWidget); // 昨收
+  });
+
+  testWidgets('行情页当日统计卡：实时流为空四字段显示 --', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        accumulationPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: MarketPage()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('当日统计 · 实时行情'), findsOneWidget);
+    expect(find.text('当日最高'), findsOneWidget);
+    expect(find.text('当日最低'), findsOneWidget);
+    expect(find.text('当日开盘'), findsOneWidget);
+    expect(find.text('昨收'), findsOneWidget);
+    // 实时流为空 → 头卡与当日四字段均不出现真实价格（'--' 兜底）
+    expect(find.text('--'), findsWidgets);
+    expect(find.text('776.70'), findsNothing);
+  });
 }

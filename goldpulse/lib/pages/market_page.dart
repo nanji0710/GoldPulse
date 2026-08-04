@@ -1,5 +1,5 @@
 // lib/pages/market_page.dart
-// 行情页：价格头卡（实时）+ 区间统计 + 周期分段控件 + 折线/K线图表。
+// 行情页：价格头卡（实时）+ 区间统计 + 当日统计 + 周期分段控件 + 折线/K线图表。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -175,6 +175,8 @@ class _MarketPageState extends ConsumerState<MarketPage> {
           _buildHeaderCard(context, live),
           const SizedBox(height: 14),
           _buildStatsCard(context),
+          const SizedBox(height: 14),
+          _buildDayStatsCard(context, live),
           const SizedBox(height: 14),
           _buildControls(context),
           const SizedBox(height: 14),
@@ -381,6 +383,50 @@ class _MarketPageState extends ConsumerState<MarketPage> {
       ]),
     );
   }
+
+  // ---- 当日统计卡（实时行情日线字段）----
+  /// 展示当前激活类型实时流的当日日线字段：当日最高/最低/开盘 + 昨收。
+  /// 与区间统计区分：当日 = 行情接口（getGoldPrice）返回的当日字段；
+  /// 区间 = 所选周期历史数据计算出的最高/最低/涨跌。
+  Widget _buildDayStatsCard(BuildContext context, GoldPrice? live) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // 卡片标题：金色圆点 + 当日统计（与区间统计卡明确区分）
+        Row(children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+                color: AppTheme.gold, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text('当日统计 · 实时行情',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          _statCol(context, '当日最高', _dayVal(live?.highPrice),
+              AppTheme.textPrimary),
+          _statCol(context, '当日最低', _dayVal(live?.lowPrice),
+              AppTheme.textPrimary),
+          _statCol(context, '当日开盘', _dayVal(live?.openPrice),
+              AppTheme.textPrimary),
+          _statCol(context, '昨收', _dayVal(live?.preClose),
+              AppTheme.textPrimary),
+        ]),
+      ]),
+    );
+  }
+
+  /// 当日日线字段文案：实时流为空或字段未填充（0）时显示 '--'，不把 0 当真实值。
+  static String _dayVal(double? v) =>
+      (v == null || v <= 0) ? '--' : fmtPrice(v);
 
   // ---- 周期分段控件 + K线切换 ----
   Widget _buildControls(BuildContext context) {
