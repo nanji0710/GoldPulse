@@ -100,12 +100,12 @@ void main() {
     final dao = _FakeHoldingDao(Holding(
         id: 1, name: '浙商积存金', kind: 'accumulation', amount: 50, totalCost: 310000, createdAt: 1));
     final stream = Stream<GoldPrice?>.value(
-        GoldPrice(code: 'Au9999', price: 780.2, change: 0, percent: 0, preClose: 780.2, time: 1));
+        GoldPrice(code: 'CZB-JCJ', price: 880.0, change: 0, percent: 0, preClose: 880.0, time: 1));
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
         holdingDaoProvider.overrideWithValue(dao),
-        priceProvider.overrideWith((ref) => stream),
+        accumulationPriceProvider.overrideWith((ref) => stream),
       ],
       child: MaterialApp(home: Scaffold(body: HoldingListTile(holding: dao.holding))),
     ));
@@ -118,6 +118,10 @@ void main() {
     final amountField = tester.widget<TextField>(find.byType(TextField).at(0));
     expect(amountField.controller!.text, '50.0000');
     expect(find.textContaining('当前持仓'), findsOneWidget);
+
+    // 卖出价格默认预填该持仓品种现价（按 kind 分流行情流）：accumulation → 880.0。
+    final priceField = tester.widget<TextField>(find.byType(TextField).at(1));
+    expect(priceField.controller!.text, '880.0');
 
     // 超卖克重：内联报错，对话框不关闭。
     await tester.enterText(find.byType(TextField).at(0), '80');
@@ -132,7 +136,7 @@ void main() {
 
     // 修正为合法克重 + 价格后，卖出成功。
     await tester.enterText(find.byType(TextField).at(0), '40');
-    await tester.enterText(find.byType(TextField).at(1), '780.2');
+    await tester.enterText(find.byType(TextField).at(1), '880.0');
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.textContaining('超过当前持仓'), findsNothing);
     await tester.tap(find.text('确定'));

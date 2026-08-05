@@ -261,10 +261,17 @@ class HoldingListTile extends ConsumerWidget {
     }
   }
 
-  /// 记一笔卖出：type=sell，默认价取当前行情；手续费按 0.4% 计算。
+  /// 记一笔卖出：type=sell，默认价取该持仓品种现价（按 kind 分流行情流）；手续费按 0.4% 计算。
   /// 超卖（克重 > 当前持仓）在对话框内联拦截，不产生交易记录。
   Future<void> _sell(BuildContext context, WidgetRef ref) async {
-    final current = ref.read(priceProvider).value?.price;
+    final provider = holding.kind == 'icbc'
+        ? icbcPriceProvider
+        : holding.kind == 'accumulation'
+        ? accumulationPriceProvider
+        : holding.kind == 'minsheng'
+        ? minshengPriceProvider
+        : priceProvider;
+    final current = ref.read(provider).value?.price;
     final result = await promptSell(
       context,
       defaultPrice: current?.toString(),
