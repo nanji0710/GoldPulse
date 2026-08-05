@@ -9,9 +9,11 @@ import 'package:goldpulse/constants/app_theme.dart';
 import 'package:goldpulse/services/market_hours.dart';
 import 'package:goldpulse/state/asset_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
+import 'package:goldpulse/state/suggestion_provider.dart';
 import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/gold_card.dart';
 import 'package:goldpulse/widgets/profit_card.dart';
+import 'package:goldpulse/widgets/suggestion_card.dart';
 
 /// 手动刷新：重启三个行情轮询（流启动即强拉一次最新价），
 /// 供下拉刷新与加载态"点击重试"按钮使用。
@@ -50,6 +52,12 @@ class HomePage extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            // 智能建议卡：主建议 + 其余品种摘要（来自 suggestionsProvider）
+            TradeSuggestionCard(
+              suggestions: ref.watch(suggestionsProvider).value ?? const [],
+              loading: ref.watch(suggestionsProvider).isLoading,
+            ),
+            const SizedBox(height: 14),
             // 三行情卡：Au9999 + 浙商积存金 + 工商积存金 同时展示
             if (price != null)
               GoldCard(
