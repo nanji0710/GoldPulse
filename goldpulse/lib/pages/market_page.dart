@@ -11,12 +11,13 @@ import 'package:goldpulse/utils/formatters.dart';
 import 'package:goldpulse/widgets/chart.dart';
 import 'package:goldpulse/widgets/empty_state.dart';
 
-/// 行情页黄金类型：Au9999 / 浙商积存金 / 工商积存金。
+/// 行情页黄金类型：Au9999 / 浙商积存金 / 工商积存金 / 民生积存金。
 /// [code] 为历史库（dao.recent）代码；[caption] 为头卡状态行的品种说明。
 enum GoldType {
   au9999('Au9999', 'SGE-Au(T+D)', 'Au9999 · 上海金'),
   czb('浙商积存金', 'CZB-JCJ', '浙商积存金'),
-  icbc('工商积存金', 'ICBC-JCJ', '工商积存金');
+  icbc('工商积存金', 'ICBC-JCJ', '工商积存金'),
+  minsheng('民生积存金', 'MSB-JCJ', '民生积存金');
 
   const GoldType(this.label, this.code, this.caption);
   final String label;
@@ -30,6 +31,7 @@ StreamProvider<GoldPrice?> goldPriceProviderOf(GoldType type) =>
       GoldType.au9999 => priceProvider,
       GoldType.czb => accumulationPriceProvider,
       GoldType.icbc => icbcPriceProvider,
+      GoldType.minsheng => minshengPriceProvider,
     };
 
 /// 日历周期起点（公开以便测试）：1日=今日 00:00；7日=今日起前 6 天；30日=今日起前 29 天。
@@ -120,6 +122,7 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     ref.invalidate(priceProvider);
     ref.invalidate(accumulationPriceProvider);
     ref.invalidate(icbcPriceProvider);
+    ref.invalidate(minshengPriceProvider);
     await _load();
   }
 
@@ -158,7 +161,7 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     // valueOrNull：AsyncError 状态下访问 .value 会重抛原始异常，这里安全降级为 null。
     final live = ref.watch(goldPriceProviderOf(_type)).valueOrNull; // 当前类型实时流最新价
     // 新价入库后自动重载历史（半实时）：仅在新时间戳出现时触发，避免重复查询。
-    // 三个流始终监听、仅对当前激活类型放行，切换类型后无需重挂监听。
+    // 四个流始终监听、仅对当前激活类型放行，切换类型后无需重挂监听。
     // 用 hasValue 而非 .value：加载中/失败状态不触发重载。
     ref.listen(priceProvider, (prev, next) {
       if (_type != GoldType.au9999) return;
@@ -170,6 +173,10 @@ class _MarketPageState extends ConsumerState<MarketPage> {
     });
     ref.listen(icbcPriceProvider, (prev, next) {
       if (_type != GoldType.icbc) return;
+      _maybeReload(prev, next);
+    });
+    ref.listen(minshengPriceProvider, (prev, next) {
+      if (_type != GoldType.minsheng) return;
       _maybeReload(prev, next);
     });
     return Scaffold(
@@ -214,7 +221,7 @@ class _MarketPageState extends ConsumerState<MarketPage> {
         border: Border.all(color: AppTheme.goldSoft.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 顶部：三类型切换分段控件（Au9999 / 浙商积存金 / 工商积存金）
+        // 顶部：四类型切换分段控件（Au9999 / 浙商积存金 / 工商积存金 / 民生积存金）
         _buildTypeSwitcher(context),
         const SizedBox(height: 12),
         // 状态行：品种说明 + 交易状态胶囊（复用 GoldCard 语言：交易金点 / 休市灰点）
