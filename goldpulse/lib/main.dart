@@ -1,5 +1,7 @@
 // lib/main.dart
-// 应用入口：通知初始化 + WorkManager 后台轮询注册 + 依赖注入。
+// 应用入口：通知初始化 + WorkManager 后台轮询注册 + 依赖注入 + 常驻通知栏启动恢复。
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -14,6 +16,7 @@ import 'services/alert_service.dart';
 import 'services/background_alert.dart';
 import 'services/price_api.dart';
 import 'state/alert_provider.dart';
+import 'state/persistent_notification_provider.dart';
 import 'state/price_provider.dart';
 
 final notificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -36,6 +39,11 @@ Future<void> main() async {
       existingWorkPolicy: ExistingPeriodicWorkPolicy.keep);
 
   final dio = Dio(BaseOptions(headers: {'User-Agent': 'goldpulse/1.0'}));
+
+  // 常驻通知栏启动恢复：prefs 已开启则异步恢复前台服务并同步持仓快照。
+  // unawaited 不阻塞启动；失败在函数内静默兜底（详见 restorePersistentNotificationFromPrefs）。
+  unawaited(restorePersistentNotificationFromPrefs());
+
   runApp(ProviderScope(
     overrides: [
       dioProvider.overrideWithValue(dio),
