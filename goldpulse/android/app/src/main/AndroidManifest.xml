@@ -5,10 +5,18 @@
     <!-- Android 13+（API 33）展示通知需 POST_NOTIFICATIONS 运行时权限。
          flutter_local_notifications 插件自带该声明（manifest 合并），此处显式声明以自文档化。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 常驻通知栏：前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <application
         android:label="goldpulse"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- 常驻通知栏：前台服务（flutter_foreground_task 插件；Android 14+ 需 foregroundServiceType） -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

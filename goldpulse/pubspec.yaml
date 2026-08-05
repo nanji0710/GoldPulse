@@ -44,6 +44,8 @@ dependencies:
   # 锁定 0.9.0.x：workmanager_android 0.9.3 的 KGP 与 Flutter 3.44.8 内置 Kotlin 不兼容
   # （compileReleaseJavaWithJavac 找不到 WorkmanagerPlugin），0.9.4 修复后再放宽。
   workmanager: "0.9.0+3"
+  # 常驻通知栏：前台服务。注意 10.x 若触发 KGP 兼容问题则降级 8.x（见依赖锁定历史注释）。
+  flutter_foreground_task: ^10.0.0
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
 
