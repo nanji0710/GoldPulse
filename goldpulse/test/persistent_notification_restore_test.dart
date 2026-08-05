@@ -122,4 +122,23 @@ void main() {
           completes);
     });
   });
+
+  group('syncNotificationPositionIfEnabled', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    test('服务未启用 → 直接返回（不抛异常、不访问 DB）', () async {
+      await syncNotificationPositionIfEnabled();
+    });
+
+    test('服务启用但 DB 不可用（测试环境无原生 sqflite）→ 静默兜底不抛', () async {
+      SharedPreferences.setMockInitialValues({
+        'notificationBarEnabled': true,
+        'notificationBarKind': 'accumulation',
+        'notificationBarIntervalSeconds': 10,
+      });
+      // HoldingDao().list() 在测试环境会因缺少原生 sqflite 抛 MissingPluginException，
+      // 被 syncNotificationPositionIfEnabled 内部 catch 吞掉 → 不抛异常。
+      await syncNotificationPositionIfEnabled();
+    });
+  });
 }

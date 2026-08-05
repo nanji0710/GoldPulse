@@ -7,6 +7,9 @@ import '../database/trade_dao.dart';
 import '../models/holding.dart';
 import '../models/trade_record.dart';
 import '../services/calculator.dart';
+// 持仓变更后同步常驻通知栏快照（仅服务启用时生效；Dart 允许与 persistent_notification_provider
+// 相互 import，provider 均懒加载无循环初始化问题）。
+import 'persistent_notification_provider.dart';
 
 final holdingDaoProvider = Provider((ref) => HoldingDao());
 
@@ -30,6 +33,8 @@ final addHoldingProvider = FutureProvider.family<void, Holding>((
 ) async {
   await ref.read(holdingDaoProvider).insert(holding);
   ref.invalidate(holdingsProvider);
+  // 常驻通知服务启用时同步最新持仓快照（通知随持仓实时变化）。
+  await syncNotificationPositionIfEnabled();
 });
 
 /// 记录一笔交易并按规则更新持仓克重/成本（原子事务写入，见 HoldingDao.recordTrade）。
@@ -54,6 +59,8 @@ final recordTradeProvider = FutureProvider.family<void, TradeRecord>((
     record: record,
   );
   ref.invalidate(holdingsProvider);
+  // 常驻通知服务启用时同步最新持仓快照（买入/卖出/生息后通知实时更新）。
+  await syncNotificationPositionIfEnabled();
 });
 
 /// 删除一笔交易并回滚持仓状态；回滚后非法（负克重/负成本）则拒绝。
@@ -83,6 +90,8 @@ final deleteTradeProvider =
       );
       ref.invalidate(holdingsProvider);
       ref.invalidate(holdingTradesProvider(arg.holdingId));
+      // 常驻通知服务启用时同步最新持仓快照（删除交易后通知实时更新）。
+      await syncNotificationPositionIfEnabled();
     });
 
 /// 数据变更后调用 `ref.invalidate(holdingsProvider)` 刷新列表。

@@ -190,6 +190,28 @@ Future<void> syncNotificationPosition(WidgetRef ref) async {
   );
 }
 
+/// 持仓变更后调用：**仅当常驻通知服务启用时**重读持仓构造快照并同步给后台 isolate。
+/// 买入/卖出/生息/删除交易/新增持仓后由 holding_provider 调用，使通知随持仓实时变化
+/// （服务启动时同步的快照会因持仓变化过期，若不重发通知停留在旧收益）。
+/// 服务未启用直接返回；任何失败静默（不影响交易流程）。无 WidgetRef 依赖，
+/// 配置经 prefs 读取（与启动恢复一致，setKind 等已写 prefs）。
+Future<void> syncNotificationPositionIfEnabled() async {
+  try {
+    final cfg = await loadPersistentNotificationRestoreConfig();
+    if (cfg == null) return; // 服务未启用，无需同步
+    final holdings = await HoldingDao().list();
+    final trades = await TradeDao().all();
+    await syncPersistentNotificationData(
+      kind: cfg.kind,
+      selectedMetrics: cfg.metrics,
+      snapshot: buildNotificationSnapshot(
+          kind: cfg.kind, holdings: holdings, trades: trades),
+    );
+  } catch (_) {
+    // 同步失败静默：通知保留旧快照，用户可重新开关服务。
+  }
+}
+
 /// 启动恢复判定：读 prefs 得已存配置，未开启（enabled=false）返回 null（无需恢复）。
 /// 与 loadFromPrefs 共用 _configFromPrefs 白名单校验，避免脏配置启动服务。
 Future<PersistentNotificationConfig?> loadPersistentNotificationRestoreConfig() async {
