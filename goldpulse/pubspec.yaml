@@ -41,11 +41,19 @@ dependencies:
   intl: ^0.19.0
   fl_chart: ^0.69.0
   flutter_local_notifications: ^18.0.1
-  workmanager: ^0.9.0
+  # 锁定 0.9.0.x：workmanager_android 0.9.3 的 KGP 与 Flutter 3.44.8 内置 Kotlin 不兼容
+  # （compileReleaseJavaWithJavac 找不到 WorkmanagerPlugin），0.9.4 修复后再放宽。
+  workmanager: "0.9.0+3"
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
 
 dependency_overrides:
+  # workmanager 0.9.0+3 的上游依赖 workmanager_android 0.9.3（KGP 与内置 Kotlin 不兼容，
+  # 见上方 workmanager 注释）——override 回上次构建成功的 0.9.0+2；
+  # 其对应 platform_interface 亦须锁 0.9.1+1（0.9.4 的 foregroundServiceConfig 参数未实现）。
+  workmanager_android: "0.9.0+2"
+  workmanager_apple: "0.9.1+2"
+  workmanager_platform_interface: "0.9.1+1"
   # Pin objective_c to 9.1.0 (hook/build.dart landed in 9.2.x): Dart
   # native-assets build hooks fail on Windows when the user home path contains
   # spaces (e.g. C:\Users\RED CHAMBER). Same rationale as the sqlite3 pin.
