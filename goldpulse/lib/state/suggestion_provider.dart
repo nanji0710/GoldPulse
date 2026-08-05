@@ -1,22 +1,18 @@
 // lib/state/suggestion_provider.dart
-// 智能建议-数据组合：汇总各品种持仓 + DB 行情序列 → 生成建议列表（按紧急度排序，主建议在首位）。
-import 'dart:convert';
-import 'dart:math' as math;
-
+// 智能建议-数据组合：汇总各品种持仓 + DB 行情序列 → 实时生成建议列表（按紧急度排序，主建议在首位）。
+// 无冷却：随行情流刷新（typeSummariesProvider 依赖价格流）每次重算，建议内容与时间戳都实时更新。
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/signal_engine.dart';
 import '../services/trend_analyzer.dart';
 import 'asset_provider.dart';
 import 'price_provider.dart';
 
-/// 冷却存储前缀：`suggestion_last_<kind>` → JSON {signal, score, at(毫秒)}。
 final suggestionsProvider = FutureProvider<List<TradeSuggestion>>((ref) async {
   final summaries = await ref.watch(typeSummariesProvider.future);
   if (summaries.isEmpty) return const [];
   final dao = ref.watch(priceDaoProvider);
-  final prefs = await SharedPreferences.getInstance();
   final now = DateTime.now();
   final result = <TradeSuggestion>[];
 
@@ -42,8 +38,6 @@ final suggestionsProvider = FutureProvider<List<TradeSuggestion>>((ref) async {
     final windowPercent = trend == TradeTrend.insufficient || prices.first <= 0
         ? 0.0
         : (prices.last - prices.first) / prices.first * 100;
-    final priceMovePercent =
-        math.max(todayPercent.abs(), windowPercent.abs());
 
     final score = scoreOf(
         todayPercent: todayPercent,
@@ -56,49 +50,19 @@ final suggestionsProvider = FutureProvider<List<TradeSuggestion>>((ref) async {
       score: score, reasons: const [], profitRate: profitRate,
       updatedAt: now,
     );
-
-    // 冷却：读上次建议，applyCooling 决定本次是否沿用。
-    final key = 'suggestion_last_${t.kind}';
-    TradeSuggestion? last;
-    final raw = prefs.getString(key);
-    if (raw != null) {
-      try {
-        final m = jsonDecode(raw) as Map<String, dynamic>;
-        last = TradeSuggestion(
-          kind: t.kind, label: t.label,
-          trend: TradeTrend.values.byName(m['trend'] as String),
-          signal: TradeSignal.values.byName(m['signal'] as String),
-          score: (m['score'] as num).toDouble(),
-          reasons: const [],
-          profitRate: profitRate,
-          updatedAt: DateTime.fromMillisecondsSinceEpoch(m['at'] as int),
-        );
-      } catch (_) {
-        last = null; // 旧数据损坏则忽略
-      }
-    }
-    final applied = applyCooling(
-        current: current, last: last, now: now,
-        priceMovePercent: priceMovePercent);
-    // 不变式：applyCooling 恒返回原引用 current（不构造副本），故 identical 判断可靠；
-    // 若将来 applyCooling 改为返回新对象，这里需同步改用 信号/分数 比较再决定写回冷却。
-    if (identical(applied, current)) {
-      await prefs.setString(key, jsonEncode({
-        'trend': current.trend.name,
-        'signal': current.signal.name,
-        'score': current.score,
-        'at': current.updatedAt.millisecondsSinceEpoch,
-      }));
-    }
     result.add(TradeSuggestion(
-      kind: applied.kind, label: applied.label,
-      trend: applied.trend, signal: applied.signal,
-      score: applied.score, reasons: reasonsFor(applied),
-      profitRate: applied.profitRate, updatedAt: applied.updatedAt,
+      kind: current.kind, label: current.label,
+      trend: current.trend, signal: current.signal,
+      score: current.score, reasons: reasonsFor(current),
+      profitRate: current.profitRate, updatedAt: current.updatedAt,
     ));
   }
 
   // 紧急度排序：riskAlert 最高，insufficient 最低（枚举声明顺序即紧急度顺序）。
   result.sort((a, b) => a.signal.index.compareTo(b.signal.index));
+  // 诊断日志（release 同样输出到 logcat）：确认建议随行情刷新实时重算。
+  debugPrint('[金脉建议] 实时计算: '
+      '${result.map((s) => '${s.label}=${s.signal.name}(${s.score.round()}分)').join(', ')}'
+      ' @ ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}');
   return result;
 });

@@ -1,11 +1,9 @@
 // test/suggestion_provider_test.dart
-// suggestionsProvider 组合持仓汇总 + DB 行情序列 → 建议列表（含冷却）的测试。
+// suggestionsProvider 组合持仓汇总 + DB 行情序列 → 实时建议列表的测试。
 // 注：brief 原用 tester.context.read（widget 级），但 Flutter 3.44.8 的 WidgetTester
-// 无 context getter，改用代码库既有约定 ProviderContainer(overrides:) 注入假 dao/summaries/prefs。
-import 'dart:convert';
+// 无 context getter，改用代码库既有约定 ProviderContainer(overrides:) 注入假 dao/summaries。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:goldpulse/models/gold_price.dart';
 import 'package:goldpulse/state/asset_provider.dart';
 import 'package:goldpulse/state/price_provider.dart';
@@ -23,9 +21,6 @@ class _FakePriceDao extends PriceDao {
 }
 
 void main() {
-  // 冷却存储用 SharedPreferences：测试必须 mock 空初始值。
-  setUp(() => SharedPreferences.setMockInitialValues({}));
-
   // 构造 60 个点（i=0 为最旧，升序），recent 需 DESC 交给调用方 .reversed。
   List<GoldPrice> asc(int n, double start, double step) => [
         for (var i = 0; i < n; i++)
@@ -95,75 +90,32 @@ void main() {
     expect(list.single.signal, TradeSignal.riskAlert);
   });
 
-  test('24h 内信号一致且波动小 → 沿用 last 且不写回 prefs', () async {
-    final now = DateTime.now();
-    final key = 'suggestion_last_accumulation';
-    // 预置上次建议：signal=hold、score=68、1 小时前。
-    SharedPreferences.setMockInitialValues({
-      key: jsonEncode({
-        'trend': 'up', 'signal': 'hold', 'score': 68,
-        'at': now.subtract(const Duration(hours: 1)).millisecondsSinceEpoch,
-      }),
-    });
-    final summaries = [
-      const TypeAssetSummary(
+  test('实时价格变化 → 建议内容更新（非仅时间戳）', () async {
+    // 同一持仓（50g、成本 45000、均价 900），仅实时价不同：
+    // 899 → 浮亏 -0.11% → hold；760 → 浮亏 -15.6% → riskAlert。
+    TypeAssetSummary make(double price) => TypeAssetSummary(
         kind: 'accumulation', label: '浙商积存金',
         totalGrams: 50, totalCost: 45000, avgCost: 900,
-        currentPrice: 888.9, preClose: 890,
-        floatingProfit: -50, todayProfit: 200, cumulativeProfit: -50,
-        holdingCount: 1,
-      ),
-    ];
-    // asc(60, 880, 0.15) 升序 [880..888.85] + append 888.9 → 窗口 +1.01% → 趋势 up。
+        currentPrice: price, preClose: 895,
+        floatingProfit: (price - 900) * 50,
+        todayProfit: (price - 895) * 50,
+        cumulativeProfit: (price - 900) * 50,
+        holdingCount: 1);
     final dao = _FakePriceDao({
-      'CZB-JCJ': asc(60, 880, 0.15).reversed.toList(),
+      'CZB-JCJ': asc(60, 890, 0.1).reversed.toList(), // DESC
     });
-    final container = ProviderContainer(overrides: [
-      typeSummariesProvider.overrideWith((ref) async => summaries),
-      priceDaoProvider.overrideWithValue(dao),
-    ]);
-    addTearDown(container.dispose);
-    final list = await container.read(suggestionsProvider.future);
-    expect(list, hasLength(1));
-    // current：窗口 +1.01%、今天 -0.12%、亏损 -0.11% → hold，score≈52。
-    // 冷却命中（1h 内、信号一致 hold、|52-68|≤20、波动 1.01%≤5%）→ 沿用 last：score 68。
-    expect(list.single.signal, TradeSignal.hold);
-    expect(list.single.score, 68);
-    // 沿用 last 而非 current → 本次不写回 prefs，score 仍为 68。
-    final prefs = await SharedPreferences.getInstance();
-    final saved = jsonDecode(prefs.getString(key)!) as Map<String, dynamic>;
-    expect((saved['score'] as num).toDouble(), 68);
-  });
+    Future<List<TradeSuggestion>> run(double price) async {
+      final container = ProviderContainer(overrides: [
+        typeSummariesProvider.overrideWith((ref) async => [make(price)]),
+        priceDaoProvider.overrideWithValue(dao),
+      ]);
+      addTearDown(container.dispose);
+      return container.read(suggestionsProvider.future);
+    }
 
-  test('损坏 JSON 容错 → 按当前建议写回 prefs', () async {
-    final key = 'suggestion_last_accumulation';
-    SharedPreferences.setMockInitialValues({key: '{invalid json'});
-    final summaries = [
-      const TypeAssetSummary(
-        kind: 'accumulation', label: '浙商积存金',
-        totalGrams: 50, totalCost: 45000, avgCost: 900,
-        currentPrice: 899, preClose: 895,
-        floatingProfit: -50, todayProfit: 200, cumulativeProfit: -50,
-        holdingCount: 1,
-      ),
-    ];
-    final dao = _FakePriceDao({
-      'CZB-JCJ': asc(60, 880, 0.3).reversed.toList(),
-    });
-    final container = ProviderContainer(overrides: [
-      typeSummariesProvider.overrideWith((ref) async => summaries),
-      priceDaoProvider.overrideWithValue(dao),
-    ]);
-    addTearDown(container.dispose);
-    // 损坏 JSON 不抛异常，返回当前建议（hold，score≈55.95）。
-    final list = await container.read(suggestionsProvider.future);
-    expect(list, hasLength(1));
-    expect(list.single.signal, TradeSignal.hold);
-    final currentScore = list.single.score;
-    // last 视为 null → 本次生效 → 写回 prefs：反序列化后 signal/score 与当前建议一致。
-    final prefs = await SharedPreferences.getInstance();
-    final saved = jsonDecode(prefs.getString(key)!) as Map<String, dynamic>;
-    expect(saved['signal'], 'hold');
-    expect((saved['score'] as num).toDouble(), closeTo(currentScore, 0.001));
+    final at899 = await run(899); // 窗口 +1.01% → up；浮亏 -0.11% → hold
+    final at760 = await run(760); // 浮亏 -15.6% ≤ -15 → riskAlert（与趋势无关）
+    expect(at899.single.signal, TradeSignal.hold);
+    expect(at760.single.signal, TradeSignal.riskAlert);
   });
 }

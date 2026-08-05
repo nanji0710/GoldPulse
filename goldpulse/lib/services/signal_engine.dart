@@ -1,6 +1,6 @@
 // lib/services/signal_engine.dart
-// 智能建议-信号引擎：置信度评分 + 收益率×趋势信号规则 + 理由文案 + 防频繁提醒冷却。
-// 全部为纯函数，供 suggestionsProvider 组合生成建议。
+// 智能建议-信号引擎：置信度评分 + 收益率×趋势信号规则 + 理由文案。
+// 全部为纯函数，供 suggestionsProvider 实时组合生成建议（无冷却，随行情刷新实时更新）。
 import 'trend_analyzer.dart';
 
 /// 建议信号（紧急度由高到低：riskAlert > takeProfit > reduce > buy > watch > hold > insufficient）。
@@ -100,19 +100,4 @@ List<String> reasonsFor(TradeSuggestion s) {
     case TradeSignal.insufficient:
       return ['行情数据积累中，打开 App 一段时间后自动生成建议'];
   }
-}
-
-/// 防频繁提醒：24h 内信号一致且未突破阈值（价格波动>5% 或 评分变化>20）则沿用上次建议。
-TradeSuggestion applyCooling({
-  required TradeSuggestion current,
-  required TradeSuggestion? last,
-  required DateTime now,
-  required double priceMovePercent,
-}) {
-  if (last == null) return current;
-  if (now.difference(last.updatedAt) > const Duration(hours: 24)) return current;
-  if (priceMovePercent > 5) return current;
-  if ((current.score - last.score).abs() > 20) return current;
-  if (current.signal != last.signal) return current;
-  return last;
 }

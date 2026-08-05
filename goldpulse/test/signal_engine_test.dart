@@ -85,47 +85,4 @@ void main() {
     });
   });
 
-  group('applyCooling', () {
-    final current = TradeSuggestion(
-        kind: 'a', label: '浙商积存金', trend: TradeTrend.up, signal: TradeSignal.hold,
-        score: 70, reasons: const [], profitRate: 8,
-        updatedAt: DateTime(2026, 8, 5, 10));
-    final last = TradeSuggestion(
-        kind: 'a', label: '浙商积存金', trend: TradeTrend.up, signal: TradeSignal.hold,
-        score: 68, reasons: const [], profitRate: 8,
-        updatedAt: DateTime(2026, 8, 5, 9));
-
-    test('无上次建议 → 直接返回 current', () {
-      expect(applyCooling(current: current, last: null,
-          now: DateTime(2026, 8, 5, 11), priceMovePercent: 0), same(current));
-    });
-    test('距上次 <24h 且信号一致且未突破阈值 → 沿用 last', () {
-      expect(applyCooling(current: current, last: last,
-          now: DateTime(2026, 8, 5, 11), priceMovePercent: 1), same(last));
-    });
-    test('超过 24h → 返回 current', () {
-      expect(applyCooling(current: current, last: last,
-          now: DateTime(2026, 8, 6, 10), priceMovePercent: 0), same(current));
-    });
-    test('价格波动 >5% → 返回 current（打破冷却）', () {
-      expect(applyCooling(current: current, last: last,
-          now: DateTime(2026, 8, 5, 11), priceMovePercent: 6), same(current));
-    });
-    test('评分变化 >20 → 返回 current（打破冷却）', () {
-      final bigMove = TradeSuggestion(
-          kind: 'a', label: '浙商积存金', trend: TradeTrend.up, signal: TradeSignal.hold,
-          score: 92, reasons: const [], profitRate: 8,
-          updatedAt: DateTime(2026, 8, 5, 11));
-      expect(applyCooling(current: bigMove, last: last,
-          now: DateTime(2026, 8, 5, 11), priceMovePercent: 1), same(bigMove));
-    });
-    test('信号改变 → 返回 current', () {
-      final changed = TradeSuggestion(
-          kind: 'a', label: '浙商积存金', trend: TradeTrend.down, signal: TradeSignal.reduce,
-          score: 40, reasons: const [], profitRate: 8,
-          updatedAt: DateTime(2026, 8, 5, 11));
-      expect(applyCooling(current: changed, last: last,
-          now: DateTime(2026, 8, 5, 11), priceMovePercent: 1), same(changed));
-    });
-  });
 }

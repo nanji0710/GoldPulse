@@ -179,15 +179,9 @@ class TradeSuggestionCard extends StatelessWidget {
           ),
       ],
       const SizedBox(height: 8),
-      // 底部：时间戳 + 免责 + 冷却
-      Row(children: [
-        Expanded(
-          child: Text('更新于 ${_fmtHHmm(main.updatedAt)} · 仅供参考，非投资建议',
-              style: TextStyle(fontSize: 10, color: AppTheme.offline)),
-        ),
-        Text('24h 内不重复提醒',
-            style: TextStyle(fontSize: 10, color: AppTheme.offline)),
-      ]),
+      // 底部：更新时间戳 + 免责（无冷却，随行情刷新实时更新）
+      Text('更新于 ${_fmtHHmm(main.updatedAt)} · 仅供参考，非投资建议',
+          style: TextStyle(fontSize: 10, color: AppTheme.offline)),
     ]);
   }
 }
