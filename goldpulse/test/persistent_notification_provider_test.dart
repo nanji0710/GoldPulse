@@ -77,4 +77,26 @@ void main() {
     expect(c.metrics,
         ['avgCost', 'todayProfit', 'cumulativeProfit', 'floatingProfit']);
   });
+
+  test('loadFromPrefs 白名单：非法品种/频率/指标回退或过滤', () async {
+    SharedPreferences.setMockInitialValues({
+      'notificationBarEnabled': true,
+      'notificationBarKind': 'hacker',
+      'notificationBarIntervalSeconds': 7,
+      'notificationBarMetrics': '["avgCost","bogus","profitRate"]',
+    });
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(persistentNotificationConfigProvider.notifier)
+        .loadFromPrefs();
+    final c = container.read(persistentNotificationConfigProvider);
+    expect(c.enabled, isTrue);
+    expect(c.kind, 'accumulation'); // 非法品种回退默认
+    expect(c.intervalSeconds, 10); // 非法频率回退默认
+    expect(c.metrics, contains('avgCost'));
+    expect(c.metrics, contains('profitRate'));
+    expect(c.metrics, isNot(contains('bogus'))); // 未知指标过滤
+    expect(c.metrics, hasLength(2));
+  });
 }

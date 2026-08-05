@@ -30,11 +30,24 @@ const Map<int, String> _refreshOptions = {
   900: '15 分钟',
 };
 
-class SettingPage extends ConsumerWidget {
+class SettingPage extends ConsumerStatefulWidget {
   const SettingPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingPage> createState() => _SettingPageState();
+}
+
+class _SettingPageState extends ConsumerState<SettingPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 恢复已存配置：进程重启后若只显示默认值，用户拨开关会用默认品种/频率启动
+    // 服务并同步，覆盖用户已存选择（Task 4 评审遗留 Important）。
+    ref.read(persistentNotificationConfigProvider.notifier).loadFromPrefs();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final interval = ref.watch(refreshIntervalProvider).valueOrNull;
     final cfg = ref.watch(persistentNotificationConfigProvider);
     return Scaffold(
@@ -71,10 +84,11 @@ class SettingPage extends ConsumerWidget {
                 key: ValueKey('bar-kind-${cfg.kind}'),
                 initialValue: cfg.kind,
                 decoration: const InputDecoration(labelText: '品种', isDense: true),
-                items: notificationKindLabels.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
+                items: [
+                  for (final k in notificationKinds)
+                    DropdownMenuItem(
+                        value: k, child: Text(notificationKindLabels[k] ?? k)),
+                ],
                 onChanged: (k) async {
                   if (k == null || k == cfg.kind) return;
                   await ref
@@ -171,6 +185,8 @@ class SettingPage extends ConsumerWidget {
 }
 
 /// 分组卡片：card 底色 + 16 圆角 + divider 描边，内嵌若干 ListTile（卡片间约 8px 间距）。
+/// 卡片内套透明 Material：ListTile 的 ink 画在最近的 Material 上，否则被 DecoratedBox
+/// 底色遮挡触发 debug 断言（ListTile background color or ink splashes may be invisible）。
 Widget _groupCard(List<Widget> children) {
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -180,7 +196,10 @@ Widget _groupCard(List<Widget> children) {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.divider),
       ),
-      child: Column(children: children),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(children: children),
+      ),
     ),
   );
 }

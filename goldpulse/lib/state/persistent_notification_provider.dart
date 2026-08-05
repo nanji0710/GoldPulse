@@ -72,19 +72,24 @@ class PersistentNotificationConfigNotifier
 
   /// 从 SharedPreferences 恢复已存配置（app 启动/设置页 initState 调用）。
   /// build() 为同步，无法直接 await getInstance，故返回默认值 + 显式恢复。
+  /// 白名单校验：品种/频率/指标含非法值时回退默认，避免脏数据进入服务。
   Future<void> loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_kEnabled) ?? false;
-    final kind = prefs.getString(_kKind) ?? 'accumulation';
-    final interval = prefs.getInt(_kInterval) ?? 10;
+    var kind = prefs.getString(_kKind) ?? 'accumulation';
+    if (!notificationKinds.contains(kind)) kind = 'accumulation';
+    var interval = prefs.getInt(_kInterval) ?? 10;
+    if (!notificationIntervalOptions.contains(interval)) interval = 10;
     var metrics = defaultNotificationMetrics;
     final raw = prefs.getString(_kMetrics);
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is List) {
-          final list = decoded.whereType<String>().toList();
-          if (list.isNotEmpty) metrics = list;
+          // 只保留已知指标 id；空列表回退默认。
+          final known =
+              decoded.whereType<String>().where(metricIds.contains).toList();
+          if (known.isNotEmpty) metrics = known;
         }
       } catch (_) {
         // 损坏的指标数据回退默认。
