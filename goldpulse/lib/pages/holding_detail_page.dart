@@ -16,17 +16,21 @@ import 'package:goldpulse/widgets/number_dialogs.dart';
 import '../services/calculator.dart';
 
 /// 按持仓类型选对应行情流（与资产页/持仓列表口径一致）：
-/// 工商积存金 → icbc、浙商积存金 → accumulation、其余（Au9999）→ Au9999 主行情。
+/// 工商积存金 → icbc、浙商积存金 → accumulation、民生积存金 → minsheng、
+/// 其余（Au9999）→ Au9999 主行情。
 StreamProvider<GoldPrice?> _kindPriceProvider(String kind) => kind == 'icbc'
     ? icbcPriceProvider
     : kind == 'accumulation'
     ? accumulationPriceProvider
+    : kind == 'minsheng'
+    ? minshengPriceProvider
     : priceProvider;
 
 /// 品种中文名（与资产页 typeSummariesProvider 口径一致）。
 String _kindLabel(String kind) => switch (kind) {
   'accumulation' => '浙商积存金',
   'icbc' => '工商积存金',
+  'minsheng' => '民生积存金',
   _ => 'Au9999',
 };
 

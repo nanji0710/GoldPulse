@@ -21,13 +21,16 @@ class HoldingListTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 按持仓类型选对应行情流：工商积存金 → icbc、浙商积存金 → accumulation、
-    // 其余（Au9999）→ Au9999 主行情。valueOrNull 保证 AsyncError 安全回落 null。
+    // 民生积存金 → minsheng、其余（Au9999）→ Au9999 主行情。
+    // valueOrNull 保证 AsyncError 安全回落 null。
     final price = ref
         .watch(
           holding.kind == 'icbc'
               ? icbcPriceProvider
               : holding.kind == 'accumulation'
               ? accumulationPriceProvider
+              : holding.kind == 'minsheng'
+              ? minshengPriceProvider
               : priceProvider,
         )
         .valueOrNull;
@@ -197,6 +200,8 @@ class HoldingListTile extends ConsumerWidget {
         ? icbcPriceProvider
         : holding.kind == 'accumulation'
         ? accumulationPriceProvider
+        : holding.kind == 'minsheng'
+        ? minshengPriceProvider
         : priceProvider;
     final current = ref.read(provider).value?.price;
     final result = await promptBuy(context, defaultPrice: current?.toString());

@@ -268,6 +268,7 @@ class _AddHoldingSheetState extends State<_AddHoldingSheet> {
               items: const [
                 DropdownMenuItem(value: 'accumulation', child: Text('浙商积存金')),
                 DropdownMenuItem(value: 'icbc', child: Text('工商积存金')),
+                DropdownMenuItem(value: 'minsheng', child: Text('民生积存金')),
                 DropdownMenuItem(value: 'au9999', child: Text('Au9999')),
               ],
               onChanged: (v) => setState(() => _kind = v ?? 'accumulation'),

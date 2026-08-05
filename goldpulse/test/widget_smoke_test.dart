@@ -204,6 +204,19 @@ void main() {
                 cumulativeProfit: 300,
                 holdingCount: 1,
               ),
+              const TypeAssetSummary(
+                kind: 'minsheng',
+                label: '民生积存金',
+                totalGrams: 30,
+                totalCost: 26400,
+                avgCost: 880,
+                currentPrice: 898.25,
+                preClose: 887.30,
+                floatingProfit: 547.5,
+                todayProfit: 328.5,
+                cumulativeProfit: 900,
+                holdingCount: 1,
+              ),
             ]),
         totalAssetSummaryProvider.overrideWith((ref) async => const TypeAssetSummary(
               kind: 'all',
@@ -224,6 +237,7 @@ void main() {
     // 三行情卡此时均为空流加载态（不显示品种名），卡片标题即来自收益卡
     expect(find.text('浙商积存金'), findsOneWidget);
     expect(find.text('工商积存金'), findsOneWidget);
+    expect(find.text('民生积存金'), findsOneWidget);
     expect(find.text('全部持仓'), findsOneWidget);
   });
 

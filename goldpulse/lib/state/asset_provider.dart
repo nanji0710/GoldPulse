@@ -63,7 +63,7 @@ class AssetSummary {
 }
 
 /// 按品种聚合的持仓收益汇总。
-/// kind: 'accumulation'(浙商) | 'icbc'(工商) | 'au9999'；label 为中文品种名。
+/// kind: 'accumulation'(浙商) | 'icbc'(工商) | 'minsheng'(民生) | 'au9999'；label 为中文品种名。
 class TypeAssetSummary {
   final String kind;
   final String label;
@@ -88,6 +88,7 @@ class TypeAssetSummary {
 String _kindLabel(String kind) => switch (kind) {
       'accumulation' => '浙商积存金',
       'icbc' => '工商积存金',
+      'minsheng' => '民生积存金',
       _ => 'Au9999',
     };
 
@@ -97,8 +98,8 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
   final holdings = await ref.watch(holdingsProvider.future);
   if (holdings.isEmpty) return const [];
   final trades = await ref.read(tradeDaoProvider).all();
-  // 固定品种顺序：浙商 → 工商 → Au9999
-  const order = ['accumulation', 'icbc', 'au9999'];
+  // 固定品种顺序：浙商 → 工商 → 民生 → Au9999
+  const order = ['accumulation', 'icbc', 'minsheng', 'au9999'];
   final byKind = <String, List<Holding>>{};
   for (final h in holdings) {
     byKind.putIfAbsent(h.kind, () => []).add(h);
@@ -118,7 +119,9 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
         ? ref.watch(icbcPriceProvider).valueOrNull
         : kind == 'accumulation'
             ? ref.watch(accumulationPriceProvider).valueOrNull
-            : ref.watch(priceProvider).valueOrNull;
+            : kind == 'minsheng'
+                ? ref.watch(minshengPriceProvider).valueOrNull
+                : ref.watch(priceProvider).valueOrNull;
     results.add(TypeAssetSummary(
       kind: kind,
       label: _kindLabel(kind),

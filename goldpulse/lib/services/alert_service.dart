@@ -15,10 +15,12 @@ class AlertService {
     }
   }
 
-  /// 品种中文名：'au9999'→Au9999、'accumulation'→浙商积存金、'icbc'→工商积存金。
+  /// 品种中文名：'au9999'→Au9999、'accumulation'→浙商积存金、
+  /// 'icbc'→工商积存金、'minsheng'→民生积存金。
   static String kindLabel(String kind) => switch (kind) {
         'accumulation' => '浙商积存金',
         'icbc' => '工商积存金',
+        'minsheng' => '民生积存金',
         _ => 'Au9999',
       };
 

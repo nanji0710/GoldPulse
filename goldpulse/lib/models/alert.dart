@@ -2,7 +2,7 @@
 class Alert {
   final int id;
   final String type;     // 'price_up' | 'price_down' | 'profit_target'
-  final String kind;     // 目标品种 'au9999' | 'accumulation' | 'icbc'（profit_target 不区分品种）
+  final String kind;     // 目标品种 'au9999' | 'accumulation' | 'icbc' | 'minsheng'（profit_target 不区分品种）
   final double target;   // 目标价（元/g）或目标金额（元）
   final bool enable;
   final int triggerCount;
