@@ -86,12 +86,8 @@ class TradeSuggestionCard extends StatelessWidget {
   }
 
   Widget _content(List<TradeSuggestion> list) {
-    final main = list.first;
-    final rest = list.skip(1).toList();
-    final (arrow, trendColor) = _trendArrow(main.trend);
-    final c = signalColor(main.signal);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // 头部：图标 + 标题 + 置信度
+      // 头部：图标 + 标题
       Row(children: [
         Container(
           width: 26, height: 26,
@@ -102,43 +98,55 @@ class TradeSuggestionCard extends StatelessWidget {
           child: const Icon(Icons.insights, size: 15, color: AppTheme.gold),
         ),
         const SizedBox(width: 8),
-        const Expanded(
-          child: Text('智能建议',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.gold.withValues(alpha: 0.4)),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text('置信 ${main.score.round()}',
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.gold)),
-        ),
+        const Text('智能建议',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
       ]),
       const SizedBox(height: 10),
-      // 主建议：品种 + 趋势 + 信号 chip
+      // 每个持仓品种一个完整建议块（品种 + 趋势 + 置信度 + 信号 + 理由）
+      for (var i = 0; i < list.length; i++) ...[
+        if (i > 0) ...[
+          const SizedBox(height: 8),
+          Divider(height: 1, color: AppTheme.divider.withValues(alpha: 0.5)),
+          const SizedBox(height: 8),
+        ],
+        _kindBlock(list[i]),
+      ],
+      const SizedBox(height: 8),
+      // 底部：更新时间戳 + 免责（无冷却，随行情刷新实时更新）
+      Text('更新于 ${_fmtHHmm(list.first.updatedAt)} · 仅供参考，非投资建议',
+          style: TextStyle(fontSize: 10, color: AppTheme.offline)),
+    ]);
+  }
+
+  /// 单个品种的完整建议块。
+  Widget _kindBlock(TradeSuggestion s) {
+    final (arrow, trendColor) = _trendArrow(s.trend);
+    final c = signalColor(s.signal);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text(main.label,
+        Text(s.label,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(width: 8),
         Text(arrow, style: TextStyle(fontSize: 14, color: trendColor)),
         const Spacer(),
+        Text('置信 ${s.score.round()}',
+            style: const TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.gold)),
+        const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: c.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(signalLabel(main.signal),
+          child: Text(signalLabel(s.signal),
               style: TextStyle(
                   fontSize: 12, fontWeight: FontWeight.w700, color: c)),
         ),
       ]),
-      const SizedBox(height: 8),
+      const SizedBox(height: 6),
       // 理由列表
-      for (final r in main.reasons)
+      for (final r in s.reasons)
         Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -158,30 +166,6 @@ class TradeSuggestionCard extends StatelessWidget {
             ),
           ]),
         ),
-      // 其余品种摘要
-      if (rest.isNotEmpty) ...[
-        const SizedBox(height: 6),
-        for (final s in rest)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Row(children: [
-              Text(s.label,
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 8),
-              const Text('→', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-              const SizedBox(width: 6),
-              Text(signalLabel(s.signal),
-                  style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                      color: signalColor(s.signal))),
-            ]),
-          ),
-      ],
-      const SizedBox(height: 8),
-      // 底部：更新时间戳 + 免责（无冷却，随行情刷新实时更新）
-      Text('更新于 ${_fmtHHmm(main.updatedAt)} · 仅供参考，非投资建议',
-          style: TextStyle(fontSize: 10, color: AppTheme.offline)),
     ]);
   }
 }

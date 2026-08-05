@@ -47,10 +47,14 @@ void main() {
     expect(find.textContaining('更新于 10:30'), findsOneWidget);
   });
 
-  testWidgets('多品种：其余品种渲染一行摘要（含动作词）', (tester) async {
+  testWidgets('多品种：每个品种都显示完整建议（含第二个品种的信号与理由）', (tester) async {
     await tester.pumpWidget(wrap(TradeSuggestionCard(
         suggestions: [risk, hold])));
+    // 第二个品种（工商积存金）：信号 chip + 理由都要显示，而不只是一行"持有"。
     expect(find.text('工商积存金'), findsOneWidget);
-    expect(find.textContaining('持有'), findsWidgets);
+    expect(find.text('持有'), findsOneWidget); // hold 信号 chip
+    expect(find.text('趋势向好'), findsOneWidget); // hold 理由第一条
+    expect(find.text('收益率为正，继续持有'), findsOneWidget); // hold 理由第二条
+    expect(find.text('置信 70'), findsOneWidget); // 第二个品种自己的置信度
   });
 }
