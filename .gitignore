@@ -27,6 +27,9 @@ android/build/
 android/*.keystore
 android/!debug.keystore
 android/captures/
+# 打包产物（64/32 位 APK）
+apk/
+*.apk
 
 # ---- iOS / macOS ----
 ios/Pods/
