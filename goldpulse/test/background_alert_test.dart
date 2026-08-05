@@ -24,6 +24,13 @@ class _FixedApi extends PriceApi {
     calls++;
     return result;
   }
+
+  // 民生独立接口同样返回固定价，避免后台检查循环里触发真实网络请求。
+  @override
+  Future<GoldPrice?> fetchMinShengPriceWithFallback() async {
+    calls++;
+    return result;
+  }
 }
 
 /// 记录型通知回调：把 title/body 收进列表，供断言。
@@ -112,7 +119,7 @@ void main() {
       showNotification: notifier.call,
     );
 
-    expect(api.calls, 3); // 逐品种各拉一次（au9999/accumulation/icbc）
+    expect(api.calls, 4); // 逐品种各拉一次（au9999/accumulation/icbc/minsheng）
     expect(notifier.notifications, isEmpty);
   });
 

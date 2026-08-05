@@ -21,6 +21,7 @@ final suggestionsProvider = FutureProvider<List<TradeSuggestion>>((ref) async {
     final code = switch (t.kind) {
       'au9999' => 'SGE-Au(T+D)',
       'icbc' => 'ICBC-JCJ',
+      'minsheng' => 'MSB-JCJ',
       _ => 'CZB-JCJ',
     };
     final recent = await dao.recent(code, limit: 60); // DESC

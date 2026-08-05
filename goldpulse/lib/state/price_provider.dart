@@ -227,3 +227,52 @@ final icbcPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
     await Future.delayed(delay);
   }
 });
+
+/// 民生积存金行情轮询（主源 ms.jr.jd.com latestPrice，DB code='MSB-JCJ'）。
+/// 模式与 [icbcPriceProvider] 完全一致：按设定间隔持续轮询；失败降级；无数据 30s 快速重试。
+final minshengPriceProvider = StreamProvider<GoldPrice?>((ref) async* {
+  final api = ref.watch(priceApiProvider);
+  final dao = ref.watch(priceDaoProvider);
+  final interval = ref.watch(refreshIntervalProvider).valueOrNull ?? const Duration(minutes: 2);
+  final nextRefresh = ref.watch(nextRefreshProvider.notifier);
+  final holdingDao = ref.watch(holdingDaoProvider);
+  final alertDao = ref.watch(alertDaoProvider);
+  final notifications = ref.watch(notificationsPluginProvider);
+  GoldPrice? last = await dao.latest('MSB-JCJ');
+  debugPrint('[金脉行情] 民生积存金 轮询启动，DB缓存: ${last?.price ?? "无"} @ ${last?.time ?? "-"}');
+  yield last;
+  while (true) {
+    try {
+      final fresh = await api.fetchMinShengPriceWithFallback();
+      if (fresh != null) {
+        debugPrint('[金脉行情] 民生积存金 入库: ${fresh.source} ${fresh.price} @${fresh.time}');
+        await dao.insert(fresh);
+        last = fresh;
+        try {
+          var assetValue = 0.0;
+          var totalCost = 0.0;
+          for (final h in await holdingDao.list()) {
+            if (h.kind != 'minsheng') continue;
+            assetValue += fresh.price * h.amount;
+            totalCost += h.totalCost;
+          }
+          await runAlertChecks(
+              dao: alertDao,
+              plugin: notifications,
+              price: fresh.price,
+              assetValue: assetValue,
+              totalCost: totalCost,
+              kind: 'minsheng');
+        } catch (_) {
+        }
+      }
+    } catch (_) {
+    }
+    yield last;
+    final delay = last == null ? const Duration(seconds: 30) : interval;
+    debugPrint('[金脉行情] 民生积存金 下次调度 ${delay.inSeconds}s'
+        ' (${last == null ? "快速重试" : "正常间隔"})');
+    nextRefresh.set(DateTime.now().add(delay), delay, retrying: last == null);
+    await Future.delayed(delay);
+  }
+});

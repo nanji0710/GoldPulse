@@ -25,12 +25,16 @@ Future<void> runBackgroundAlertCheck({
       'au9999': 'SGE-Au(T+D)',
       'accumulation': 'CZB-JCJ',
       'icbc': 'ICBC-JCJ',
+      'minsheng': 'MSB-JCJ',
     };
     final holdings = await holdingDao.list();
     final alerts = await alertDao.list();
     for (final entry in kindCodes.entries) {
       final kind = entry.key;
-      final price = await api.fetchGoldPriceWithFallback(entry.value);
+      // 民生走独立 latestPrice 接口，其余走统一 getGoldPrice。
+      final price = kind == 'minsheng'
+          ? await api.fetchMinShengPriceWithFallback()
+          : await api.fetchGoldPriceWithFallback(entry.value);
       if (price == null) continue; // 该品种拉价失败 → 跳过，不发通知
       // 只统计同品种持仓（收益目标按所选品种的利润判定）。
       var assetValue = 0.0, totalCost = 0.0;

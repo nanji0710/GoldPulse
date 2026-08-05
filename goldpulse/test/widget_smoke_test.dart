@@ -28,10 +28,12 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         priceProvider.overrideWith((ref) => _fixedPriceStream),
-        // 测试环境无真实 dio：两个积存金轮询直接给空流，避免触发 UnimplementedError。
+        // 测试环境无真实 dio：各积存金轮询直接给空流，避免触发 UnimplementedError。
         accumulationPriceProvider
             .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: HomePage()),
     ));
@@ -41,13 +43,27 @@ void main() {
   });
 
   testWidgets('资产页空状态提示录入', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: AssetPage())));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        // 测试环境无真实 dio：民生积存金轮询直接给空流，避免触发 UnimplementedError。
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: AssetPage()),
+    ));
     await tester.pumpAndSettle();
     expect(find.textContaining('添加你的第一笔黄金持仓'), findsOneWidget);
   });
 
   testWidgets('行情页渲染周期标签', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: MarketPage())));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        // 测试环境无真实 dio：民生积存金轮询直接给空流，避免触发 UnimplementedError。
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+      ],
+      child: const MaterialApp(home: MarketPage()),
+    ));
     await tester.pumpAndSettle();
     expect(find.text('1日'), findsOneWidget);
     expect(find.text('7日'), findsOneWidget);
@@ -66,6 +82,8 @@ void main() {
             GoldPrice(
                 code: 'CZB-JCJ', price: 881.00, change: 1.00, percent: 0.11, preClose: 880.00, time: 1))),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: MarketPage()),
     ));
@@ -104,6 +122,8 @@ void main() {
             time: 1))),
         priceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: MarketPage()),
     ));
@@ -127,6 +147,8 @@ void main() {
         accumulationPriceProvider
             .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: MarketPage()),
     ));
@@ -153,6 +175,8 @@ void main() {
         accumulationPriceProvider
             .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         typeSummariesProvider.overrideWith((ref) async => [
               const TypeAssetSummary(
                 kind: 'accumulation',
@@ -237,6 +261,8 @@ void main() {
         accumulationPriceProvider
             .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
         icbcPriceProvider.overrideWith((ref) => Stream<GoldPrice?>.value(null)),
+        minshengPriceProvider
+            .overrideWith((ref) => Stream<GoldPrice?>.value(null)),
       ],
       child: const MaterialApp(home: AssetPage()),
     ));
@@ -248,5 +274,19 @@ void main() {
     expect(find.text('持仓收益'), findsWidgets);
     expect(find.text('今日盈亏'), findsWidgets);
     expect(find.text('累计收益'), findsWidgets);
+  });
+
+  testWidgets('minshengPriceProvider 可被注入并取到值', (tester) async {
+    // 直接 override 流：民生轮询依赖 priceApi/dio 等真实资源，注入流即绕过真实网络。
+    final stream = Stream<GoldPrice?>.value(GoldPrice(
+        code: 'MSB-JCJ', price: 898.25, change: 10.95,
+        percent: 1.23, preClose: 887.30, time: 1));
+    final container = ProviderContainer(overrides: [
+      minshengPriceProvider.overrideWith((ref) => stream),
+    ]);
+    addTearDown(container.dispose);
+    final gp = await container.read(minshengPriceProvider.future);
+    expect(gp!.price, closeTo(898.25, 0.001));
+    expect(gp.code, 'MSB-JCJ');
   });
 }
