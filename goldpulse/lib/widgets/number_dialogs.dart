@@ -121,14 +121,16 @@ Future<({double amount, double price})?> promptBuy(
   );
 }
 
-/// 卖出对话框：克重 + 价格（默认当前行情价）。
-/// [maxAmount] 当前持仓克重；超卖时内联报错且不关闭对话框。
+/// 卖出对话框：克重（默认当前持仓克重）+ 价格（默认当前行情价）。
+/// [maxAmount] 当前持仓克重；克重默认填入 [maxAmount]，不改直接确定即全部卖出；
+/// 超卖（> maxAmount）时内联报错且不关闭对话框。
 Future<({double amount, double price})?> promptSell(
   BuildContext context, {
   String? defaultPrice,
   required double maxAmount,
 }) {
-  final amountC = TextEditingController();
+  // 卖出克重默认填当前持仓克重：用户不改直接确定即为全部卖出，避免手动输入。
+  final amountC = TextEditingController(text: fmtGrams(maxAmount));
   final priceC = TextEditingController(text: defaultPrice);
   return showDialog<({double amount, double price})>(
     context: context,
@@ -158,7 +160,7 @@ Future<({double amount, double price})?> promptSell(
                   ),
                   decoration: InputDecoration(
                     labelText: '卖出克重',
-                    hintText: '例如 50',
+                    hintText: '当前持仓 ${fmtGrams(maxAmount)}g',
                     errorText: errorText,
                   ),
                   onChanged: (_) => revalidate(),

@@ -114,6 +114,11 @@ void main() {
     await tester.tap(find.text('记一笔卖出'));
     await _settle(tester);
 
+    // 卖出克重默认预填当前持仓克重（不改直接确定即全部卖出），而非空/示例值。
+    final amountField = tester.widget<TextField>(find.byType(TextField).at(0));
+    expect(amountField.controller!.text, '50.0000');
+    expect(find.textContaining('当前持仓'), findsOneWidget);
+
     // 超卖克重：内联报错，对话框不关闭。
     await tester.enterText(find.byType(TextField).at(0), '80');
     await tester.pump(const Duration(milliseconds: 50));
