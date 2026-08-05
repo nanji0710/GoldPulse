@@ -1,5 +1,5 @@
 // lib/pages/home_page.dart
-// 首页 Dashboard：Au9999/浙商积存金/工商积存金 实时价格 + 持仓收益概览 + 刷新倒计时
+// 首页 Dashboard：Au9999/浙商积存金/工商积存金/民生积存金 实时价格 + 持仓收益概览 + 刷新倒计时
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,10 +21,12 @@ Future<void> refreshAllQuotes(WidgetRef ref) async {
   ref.invalidate(priceProvider);
   ref.invalidate(accumulationPriceProvider);
   ref.invalidate(icbcPriceProvider);
+  ref.invalidate(minshengPriceProvider);
   await Future.wait([
     ref.refresh(priceProvider.future),
     ref.refresh(accumulationPriceProvider.future),
     ref.refresh(icbcPriceProvider.future),
+    ref.refresh(minshengPriceProvider.future),
   ]);
 }
 
@@ -40,6 +42,7 @@ class HomePage extends ConsumerWidget {
     final price = ref.watch(priceProvider).value;                 // Au9999
     final accPrice = ref.watch(accumulationPriceProvider).value;  // 浙商积存金
     final icbcPrice = ref.watch(icbcPriceProvider).value;         // 工商积存金
+    final msPrice = ref.watch(minshengPriceProvider).value;       // 民生积存金
     final now = DateTime.now();
     final trading = MarketHours.isTrading(now);
     final phaseLabel = MarketHours.label(now);
@@ -60,7 +63,7 @@ class HomePage extends ConsumerWidget {
               loading: !ref.watch(suggestionsProvider).hasValue,
             ),
             const SizedBox(height: 14),
-            // 三行情卡：Au9999 + 浙商积存金 + 工商积存金 同时展示
+            // 四行情卡：Au9999 + 浙商积存金 + 工商积存金 + 民生积存金 同时展示
             if (price != null)
               GoldCard(
                 code: 'Au9999',
@@ -99,6 +102,21 @@ class HomePage extends ConsumerWidget {
                 percent: icbcPrice.percent,
                 time: icbcPrice.time,
                 source: icbcPrice.source,
+                statusLabel: phaseLabel,
+                statusHint: resumeHint,
+                isTrading: trading,
+              )
+            else
+              _loadingCard(context, onRetry: () => refreshAllQuotes(ref)),
+            const SizedBox(height: 14),
+            if (msPrice != null)
+              GoldCard(
+                code: '民生积存金',
+                price: msPrice.price,
+                change: msPrice.change,
+                percent: msPrice.percent,
+                time: msPrice.time,
+                source: msPrice.source,
                 statusLabel: phaseLabel,
                 statusHint: resumeHint,
                 isTrading: trading,
