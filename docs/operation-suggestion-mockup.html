@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>操作建议卡片 Mockup — 金脉 GoldPulse</title>
+<style>
+  :root {
+    --bg:#0F172A; --card:#1E293B; --card-hi:#28384E;
+    --gold:#D9A441; --gold-soft:#8A6A1F;
+    --up:#E5484D; --down:#2E9E6B; --flat:#94A3B8;
+    --text:#F1F5F9; --text2:#94A3B8; --divider:#334155;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:28px;
+  }
+  .page-title { font-size:20px; font-weight:600; text-align:center; margin-bottom:8px; }
+  .page-sub { font-size:13px; color:var(--text2); text-align:center; max-width:420px; line-height:1.6; }
+  .device {
+    width:380px; background:var(--bg); border:1px solid var(--divider);
+    border-radius:28px; padding:18px 14px 22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  .appbar { font-size:18px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .appbar .logo { width:9px; height:9px; border-radius:2px; background:var(--gold); }
+  .appbar .brand { font-size:12px; color:var(--text2); }
+
+  /* ===== 操作建议小卡片 ===== */
+  .suggest {
+    background:linear-gradient(180deg, #26354F 0%, var(--card-hi) 100%);
+    border:1px solid var(--divider); border-radius:16px;
+    padding:12px 14px; margin-bottom:14px;
+  }
+  .suggest-head {
+    display:flex; align-items:center; gap:7px; margin-bottom:10px;
+  }
+  .suggest-head .seal {
+    width:26px; height:26px; border-radius:8px; background:rgba(217,164,65,.16);
+    display:flex; align-items:center; justify-content:center; font-size:14px;
+  }
+  .suggest-head .title { font-size:14px; font-weight:600; flex:1; }
+  .suggest-head .tag { font-size:10px; color:var(--text2); border:1px solid var(--divider); border-radius:999px; padding:2px 8px; }
+  .s-row {
+    display:flex; align-items:center; gap:9px;
+    padding:8px 0; border-top:1px solid rgba(51,65,85,.55);
+  }
+  .s-row:first-of-type { border-top:none; padding-top:0; }
+  .s-name { font-size:13px; font-weight:600; width:86px; flex-shrink:0; }
+  .s-arrow { font-size:14px; width:16px; text-align:center; flex-shrink:0; }
+  .s-chip {
+    font-size:11px; font-weight:600; border-radius:999px; padding:2px 10px; flex-shrink:0;
+  }
+  .s-chip.buy { background:rgba(46,158,107,.18); color:#4CC78F; }
+  .s-chip.sell { background:rgba(229,72,77,.16); color:#F1787C; }
+  .s-chip.hold { background:rgba(217,164,65,.16); color:var(--gold); }
+  .s-chip.watch { background:rgba(148,163,184,.16); color:var(--text2); }
+  .s-text { flex:1; font-size:11.5px; color:var(--text2); line-height:1.45; text-align:right; }
+  .s-foot { margin-top:9px; padding-top:8px; border-top:1px dashed rgba(51,65,85,.7); font-size:10px; color:#64748B; line-height:1.5; }
+
+  /* 行情大卡（示意） */
+  .price-card {
+    background:linear-gradient(180deg, #2B3B55 0%, var(--card-hi) 100%);
+    border:1px solid var(--divider); border-radius:20px; padding:16px;
+    margin-bottom:12px;
+  }
+  .price-card .row { display:flex; align-items:flex-end; justify-content:space-between; }
+  .price-card .code { font-size:13px; color:var(--text2); margin-bottom:6px; }
+  .price-card .num { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .price-card .chg { font-size:13px; font-weight:600; color:var(--up); margin-bottom:6px; }
+
+  .legend { width:380px; margin-top:6px; }
+  .legend h3 { font-size:14px; margin-bottom:8px; color:var(--gold); }
+  .legend .rules { background:var(--card); border:1px solid var(--divider); border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.8; color:var(--text2); }
+  .legend .rules b { color:var(--text); }
+  .legend .rules .up{color:#F1787C}.legend .rules .down{color:#4CC78F}.legend .rules .flat{color:var(--text2)}
+</style>
+</head>
+<body>
+  <div>
+    <div class="page-title">操作建议 · 小卡片</div>
+    <div class="page-sub">首页顶部（三行情卡之前），结合近期涨跌趋势 + 当前持仓盈亏，动态给出 买入/卖出/持有/观望 建议。</div>
+  </div>
+
+  <!-- 状态 1：有持仓 + 趋势可算 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+
+    <div class="suggest">
+      <div class="suggest-head">
+        <span class="seal">⚖</span>
+        <span class="title">操作建议</span>
+        <span class="tag">动态</span>
+      </div>
+      <div class="s-row">
+        <span class="s-name">浙商积存金</span>
+        <span class="s-arrow up" style="color:#F1787C">↗</span>
+        <span class="s-chip buy">买入</span>
+        <span class="s-text">趋势回升，浮亏中，可分批补仓摊薄</span>
+      </div>
+      <div class="s-row">
+        <span class="s-name">工商积存金</span>
+        <span class="s-arrow up" style="color:#F1787C">↗</span>
+        <span class="s-chip hold">持有</span>
+        <span class="s-text">趋势向上且浮盈，继续持有</span>
+      </div>
+      <div class="s-foot">基于近期涨跌趋势与持仓盈亏的参考提示，非投资建议 · 随行情刷新</div>
+    </div>
+
+    <div class="price-card">
+      <div class="code">浙商积存金</div>
+      <div class="row"><div class="num">896.82</div><div class="chg">+3.42 (+0.38%)</div></div>
+    </div>
+    <div class="price-card">
+      <div class="code">Au9999</div>
+      <div class="row"><div class="num">897.04</div><div class="chg">+3.54 (+0.40%)</div></div>
+    </div>
+  </div>
+
+  <!-- 状态 2：数据不足 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+
+    <div class="suggest">
+      <div class="suggest-head">
+        <span class="seal">⚖</span>
+        <span class="title">操作建议</span>
+        <span class="tag">动态</span>
+      </div>
+      <div class="s-row">
+        <span class="s-name">浙商积存金</span>
+        <span class="s-arrow flat" style="color:var(--text2)">·</span>
+        <span class="s-chip watch">待积累</span>
+        <span class="s-text">行情点数不足，继续打开积累后生成</span>
+      </div>
+      <div class="s-foot">基于近期涨跌趋势与持仓盈亏的参考提示，非投资建议</div>
+    </div>
+  </div>
+
+  <!-- 状态 3：无持仓 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+
+    <div class="suggest">
+      <div class="suggest-head">
+        <span class="seal">⚖</span>
+        <span class="title">操作建议</span>
+        <span class="tag">动态</span>
+      </div>
+      <div class="s-row">
+        <span class="s-text" style="text-align:left">录入持仓后，结合行情趋势动态生成买卖建议</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>建议规则（参考口径）</h3>
+    <div class="rules">
+      <b>趋势判定：</b>取该品种近期行情序列，短期(近10点)与中期(近30点)涨幅同向判断——
+      <span class="up">↑ 双升</span> 看多，<span class="down">↓ 双跌</span> 看空，否则 <span class="flat">→ 横盘</span>。<br>
+      <b>组合规则（趋势 × 盈亏）：</b><br>
+      &nbsp;· 趋势<span class="up">↑</span> + 浮盈 → <b>持有</b>：趋势向好，继续持有<br>
+      &nbsp;· 趋势<span class="up">↑</span> + 浮亏 → <b>买入</b>：趋势回升，分批补仓摊薄成本<br>
+      &nbsp;· 趋势<span class="down">↓</span> + 浮盈 → <b>卖出</b>：趋势转弱，考虑止盈部分<br>
+      &nbsp;· 趋势<span class="down">↓</span> + 浮亏 → <b>观望</b>：趋势走弱且浮亏，谨慎观望<br>
+      &nbsp;· 横盘 → <b>持有</b>：横盘震荡，持有观望<br>
+      &nbsp;· 点数 &lt; 5 → <b>待积累</b>：数据不足不生成建议
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能交易建议卡片 Mockup v2 — 金脉 GoldPulse</title>
+<style>
+  :root {
+    --bg:#0F172A; --card:#1E293B; --card-hi:#28384E;
+    --gold:#D9A441; --gold-soft:#8A6A1F;
+    --up:#E5484D; --down:#2E9E6B; --flat:#94A3B8;
+    --text:#F1F5F9; --text2:#94A3B8; --divider:#334155;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:28px;
+  }
+  .page-title { font-size:20px; font-weight:600; text-align:center; margin-bottom:8px; }
+  .page-sub { font-size:13px; color:var(--text2); text-align:center; max-width:460px; line-height:1.6; }
+  .device {
+    width:380px; background:var(--bg); border:1px solid var(--divider);
+    border-radius:28px; padding:18px 14px 22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  .appbar { font-size:18px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .appbar .logo { width:9px; height:9px; border-radius:2px; background:var(--gold); }
+  .appbar .brand { font-size:12px; color:var(--text2); }
+
+  /* ===== 智能交易建议卡片 v2 ===== */
+  .suggest {
+    background:linear-gradient(180deg, #26354F 0%, var(--card-hi) 100%);
+    border:1px solid var(--divider); border-radius:18px;
+    padding:14px; margin-bottom:14px;
+  }
+  .sg-head { display:flex; align-items:center; gap:7px; margin-bottom:11px; }
+  .sg-head .seal { width:26px; height:26px; border-radius:8px; background:rgba(217,164,65,.16); display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .sg-head .title { font-size:14px; font-weight:600; flex:1; }
+  .sg-score { font-size:11px; font-weight:700; color:var(--gold); border:1px solid rgba(217,164,65,.4); border-radius:999px; padding:3px 9px; }
+  .sg-score b { font-size:13px; }
+
+  .sg-main { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .sg-kind { font-size:14px; font-weight:700; }
+  .sg-trend { display:flex; align-items:center; gap:4px; font-size:12px; }
+  .sg-trend .up { color:#F1787C; } .sg-trend .down { color:#4CC78F; } .sg-trend .flat { color:var(--text2); }
+  .sg-signal {
+    font-size:12px; font-weight:700; border-radius:999px; padding:4px 12px; margin-left:auto;
+  }
+  .sg-signal.buy { background:rgba(46,158,107,.2); color:#4CC78F; }
+  .sg-signal.hold { background:rgba(217,164,65,.18); color:var(--gold); }
+  .sg-signal.sell { background:rgba(229,72,77,.18); color:#F1787C; }
+  .sg-signal.watch { background:rgba(148,163,184,.18); color:var(--text2); }
+
+  .sg-reasons { list-style:none; padding:0; margin:0 0 10px; }
+  .sg-reasons li { font-size:12px; color:var(--text2); line-height:1.7; padding-left:14px; position:relative; }
+  .sg-reasons li::before { content:""; position:absolute; left:0; top:9px; width:5px; height:5px; border-radius:50%; background:var(--gold-soft); }
+
+  .sg-sub { border-top:1px dashed rgba(51,65,85,.7); padding-top:8px; display:flex; align-items:center; gap:8px; }
+  .sg-sub .sub-kind { font-size:12px; font-weight:600; color:var(--text); }
+  .sg-sub .sub-arrow { font-size:11px; }
+  .sg-sub .sub-signal { font-size:11px; font-weight:700; color:#F1787C; }
+
+  .sg-foot { margin-top:9px; font-size:10px; color:#64748B; line-height:1.5; display:flex; justify-content:space-between; }
+
+  /* 行情大卡（示意） */
+  .price-card {
+    background:linear-gradient(180deg, #2B3B55 0%, var(--card-hi) 100%);
+    border:1px solid var(--divider); border-radius:20px; padding:16px; margin-bottom:12px;
+  }
+  .price-card .row { display:flex; align-items:flex-end; justify-content:space-between; }
+  .price-card .code { font-size:13px; color:var(--text2); margin-bottom:6px; }
+  .price-card .num { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .price-card .chg { font-size:13px; font-weight:600; color:var(--up); margin-bottom:6px; }
+
+  .legend { width:380px; margin-top:6px; }
+  .legend h3 { font-size:14px; margin-bottom:8px; color:var(--gold); }
+  .legend .rules { background:var(--card); border:1px solid var(--divider); border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.8; color:var(--text2); }
+  .legend .rules b { color:var(--text); }
+  .legend .rules .up{color:#F1787C}.legend .rules .down{color:#4CC78F}.legend .rules .flat{color:var(--text2)}
+</style>
+</head>
+<body>
+  <div>
+    <div class="page-title">智能交易建议卡片 · v2（融合 ChatGPT 方案）</div>
+    <div class="page-sub">首页顶部小卡片：置信度评分 + 趋势 + 动作建议 + 理由；依据近期涨跌趋势与持仓盈亏动态生成，防频繁提醒、附免责。</div>
+  </div>
+
+  <!-- 状态 1：主建议 + 其他品种摘要 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+
+    <div class="suggest">
+      <div class="sg-head">
+        <span class="seal">📊</span>
+        <span class="title">智能建议</span>
+        <span class="sg-score">置信 <b>82</b></span>
+      </div>
+      <div class="sg-main">
+        <span class="sg-kind">浙商积存金</span>
+        <span class="sg-trend"><span class="up">↗</span> 上涨</span>
+        <span class="sg-signal hold">建议持有</span>
+      </div>
+      <ul class="sg-reasons">
+        <li>今日 +0.38%，7 日趋势向上，均线多头</li>
+        <li>收益率 +8.5%，趋势未破坏，不宜提前卖出</li>
+      </ul>
+      <div class="sg-sub">
+        <span class="sub-kind">工商积存金</span>
+        <span class="sub-arrow flat">→</span>
+        <span class="sub-signal">减仓 30% · 短期涨幅过快</span>
+      </div>
+      <div class="sg-foot">
+        <span>更新于 10:30 · 仅供参考，非投资建议</span>
+        <span>24h 内不重复提醒</span>
+      </div>
+    </div>
+
+    <div class="price-card"><div class="code">浙商积存金</div><div class="row"><div class="num">896.82</div><div class="chg">+3.42 (+0.38%)</div></div></div>
+    <div class="price-card"><div class="code">Au9999</div><div class="row"><div class="num">897.04</div><div class="chg">+3.54 (+0.40%)</div></div></div>
+  </div>
+
+  <!-- 状态 2：风险提醒 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+    <div class="suggest">
+      <div class="sg-head"><span class="seal">📊</span><span class="title">智能建议</span><span class="sg-score" style="color:#F1787C;border-color:rgba(229,72,77,.4)">置信 <b>68</b></span></div>
+      <div class="sg-main">
+        <span class="sg-kind">浙商积存金</span>
+        <span class="sg-trend"><span class="down">↘</span> 下跌</span>
+        <span class="sg-signal sell">风险提醒</span>
+      </div>
+      <ul class="sg-reasons">
+        <li>今日 -1.2%，趋势走弱</li>
+        <li>收益率 -16.3%，亏损较大，建议重新评估仓位</li>
+      </ul>
+      <div class="sg-foot"><span>更新于 10:30 · 仅供参考，非投资建议</span></div>
+    </div>
+  </div>
+
+  <!-- 状态 3：数据不足 / 无持仓 -->
+  <div class="device">
+    <div class="appbar"><span class="logo"></span>金脉 GoldPulse <span class="brand">· 首页</span></div>
+    <div class="suggest">
+      <div class="sg-head"><span class="seal">📊</span><span class="title">智能建议</span></div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.7">
+        行情数据积累中，打开 App 一段时间后自动生成建议。<br>（或：录入持仓后生成建议）
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>融合后的建议口径</h3>
+    <div class="rules">
+      <b>置信度评分 0-100</b>：今日涨跌 30% + 近期(最近可得窗口) 40% + 持仓状态(收益率) 30%；点数不足自动降级。<br>
+      <b>趋势</b>：按当前价 vs 昨收、当前价 vs 近期窗口起点判断 <span class="up">↑涨 / ↓跌 / →震荡</span>。<br>
+      <b>持仓建议（收益率分档 × 趋势）：</b><br>
+      &nbsp;· 收益率 ≤ -15% → <b>风险提醒</b>：亏损较大，重新评估仓位<br>
+      &nbsp;· -15% ~ -5%：趋势<span class="up">↑</span> → <b>分批补仓</b>；趋势<span class="down">↓</span> → <b>观望</b>等反弹<br>
+      &nbsp;· -5% ~ +5% → <b>观察/持有</b><br>
+      &nbsp;· +5% ~ +20%：趋势<span class="up">↑</span> → <b>持有</b>；趋势<span class="down">↓</span> → <b>减仓</b>止盈部分<br>
+      &nbsp;· &gt; +20% 且短期涨幅大 → <b>分批止盈</b>（卖出 20-30%）<br>
+      <b>多品种</b>：主建议取信号最强烈（或风险最高）的品种，其余品种一行摘要。<br>
+      <b>防频繁提醒</b>：一次建议 24h 内不重复变更（除非价格波动 &gt;5% 或评分变化 &gt;20）。<br>
+      <b>免责</b>：仅供参考，非投资建议。
+    </div>
+  </div>
+</body>
+</html>
