@@ -167,7 +167,8 @@ String _kindLabel(String kind) => switch (kind) {
       _ => '浙商积存金',
     };
 
-/// 拼通知文本：第一行「品种 涨跌额 现价」，下方自选指标「名 值」（每行一个）。
+/// 拼通知文本：第一行「品种 涨跌额 现价」，下方自选指标**每行两个**（2 列网格，
+/// 标签全角空格左对齐到 6 宽；奇数个指标最后一行单个）。
 /// 纯函数，可单测。kind 缺省 'accumulation'（浙商积存金）。
 String buildNotificationText({
   required Map<String, String> metrics,
@@ -177,10 +178,15 @@ String buildNotificationText({
   final buf = StringBuffer();
   buf.writeln(
       '${_kindLabel(kind)}  涨跌 ${metrics['change'] ?? '--'}    ${metrics['price'] ?? '--'} 元/g');
-  for (final id in selectedMetrics) {
-    final label = metricLabels[id] ?? id;
-    final value = metrics[id] ?? '--';
-    buf.writeln('$label  $value');
+  for (var i = 0; i < selectedMetrics.length; i += 2) {
+    final cells = <String>[];
+    for (var j = 0; j < 2 && i + j < selectedMetrics.length; j++) {
+      final id = selectedMetrics[i + j];
+      final label = metricLabels[id] ?? id;
+      final value = metrics[id] ?? '--';
+      cells.add('${label.padRight(6, '　')}$value'); // 全角空格对齐标签
+    }
+    buf.writeln(cells.join('  '));
   }
   return buf.toString().trimRight();
 }

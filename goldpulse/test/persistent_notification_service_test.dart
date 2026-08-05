@@ -35,5 +35,19 @@ void main() {
       expect(t, contains('均价(成本)'));
       expect(t, isNot(contains('持仓收益'))); // 未选则不显示
     });
+
+    test('自选指标每行两个（2 列网格），奇数个最后一行单个', () {
+      final t = buildNotificationText(
+          metrics: metrics,
+          selectedMetrics: ['avgCost', 'floatingProfit', 'profitRate']);
+      final lines = t.split('\n');
+      // 第一行是固定行（品种+涨跌+现价），其后为指标行。
+      final metricLines = lines.skip(1).toList();
+      expect(metricLines, hasLength(2));
+      expect(metricLines[0], contains('均价(成本)'));
+      expect(metricLines[0], contains('持仓收益'));
+      expect(metricLines[1], contains('收益率'));
+      expect(metricLines[1], isNot(contains('今日盈亏')));
+    });
   });
 }
