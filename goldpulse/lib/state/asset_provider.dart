@@ -122,6 +122,12 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
             : kind == 'minsheng'
                 ? ref.watch(minshengPriceProvider).valueOrNull
                 : ref.watch(priceProvider).valueOrNull;
+    // 精确今日盈亏：隔夜持仓按昨收、今日买入按买入价、今日卖出按卖出价。
+    final todayStart = DateTime(DateTime.now().year, DateTime.now().month,
+            DateTime.now().day)
+        .millisecondsSinceEpoch;
+    final tradesToday =
+        trades.where((t) => ids.contains(t.holdingId) && t.time >= todayStart);
     results.add(TypeAssetSummary(
       kind: kind,
       label: _kindLabel(kind),
@@ -135,7 +141,9 @@ final typeSummariesProvider = FutureProvider<List<TypeAssetSummary>>((ref) async
           : Calculator.floatingProfit(price.price, totalGrams, totalCost),
       todayProfit: price == null
           ? 0
-          : Calculator.todayProfit(price.price, price.preClose, totalGrams),
+          : Calculator.todayProfitPrecise(
+              price: price.price, preClose: price.preClose,
+              amountNow: totalGrams, tradesToday: tradesToday),
       cumulativeProfit: price == null
           ? 0
           : Calculator.cumulativeProfit(

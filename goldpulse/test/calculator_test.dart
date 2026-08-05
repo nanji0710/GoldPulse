@@ -60,6 +60,42 @@ void main() {
   test('todayProfit: 平盘为零', () {
     expect(Calculator.todayProfit(780.0, 780.0, 501.2), closeTo(0, 0.0001));
   });
+  test('todayProfitPrecise: 无今日交易 = 隔夜持仓按昨收', () {
+    expect(Calculator.todayProfitPrecise(
+        price: 895.8, preClose: 880, amountNow: 10, tradesToday: const []),
+        closeTo((895.8 - 880) * 10, 1e-9)); // 158
+  });
+  test('todayProfitPrecise: 今日买入按买入价（不虚增昨收到买入价区间）', () {
+    // 用户场景：昨收 880、今日买入 10g@883.1、现价 895.8。
+    final trades = [
+      TradeRecord(holdingId: 1, type: 'buy', amount: 10, price: 883.1, fee: 0, time: 100),
+    ];
+    // 隔夜克重 = 10 − 10 = 0；今日盈亏 = (895.8 − 883.1) × 10 = 127
+    expect(Calculator.todayProfitPrecise(
+        price: 895.8, preClose: 880, amountNow: 10, tradesToday: trades),
+        closeTo((895.8 - 883.1) * 10, 1e-9));
+  });
+  test('todayProfitPrecise: 今日卖出按卖出价锁定', () {
+    // 隔夜持 10g，今日卖出 4g@890，昨收 880，现价 895.8。
+    final trades = [
+      TradeRecord(holdingId: 1, type: 'sell', amount: 4, price: 890, fee: 0, time: 100),
+    ];
+    // 隔夜克重 = 10 + 4 = 14？不：当前克重 6，隔夜 = 6 + 4 = 10。
+    // 今日盈亏 = (895.8 − 880) × 6（剩余隔夜6g） + (890 − 880) × 4（已卖出4g）
+    expect(Calculator.todayProfitPrecise(
+        price: 895.8, preClose: 880, amountNow: 6, tradesToday: trades),
+        closeTo((895.8 - 880) * 6 + (890 - 880) * 4, 1e-9));
+  });
+  test('todayProfitPrecise: 生息克重不计今日盈亏（无成本基准）', () {
+    final trades = [
+      TradeRecord(holdingId: 1, type: 'interest', amount: 0.08, price: 0, fee: 0, time: 100),
+    ];
+    // 当前克重 10.08（含今日生息 0.08），生息克重从隔夜扣除。
+    // 隔夜 = 10.08 − 0.08 = 10；今日盈亏 = (895.8 − 880) × 10。
+    expect(Calculator.todayProfitPrecise(
+        price: 895.8, preClose: 880, amountNow: 10.08, tradesToday: trades),
+        closeTo((895.8 - 880) * 10, 1e-9));
+  });
   test('sellNetProceeds: 多卖单净收入 = Σ(克重×价 − 手续费)', () {
     final sells = [
       TradeRecord(holdingId: 1, type: 'sell', amount: 100, price: 780.20, fee: 312.08, time: 1),

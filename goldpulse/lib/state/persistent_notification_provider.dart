@@ -166,12 +166,20 @@ PositionSnapshot? buildNotificationSnapshot({
   if (hs.isEmpty) return null;
   final ids = hs.map((h) => h.id).toSet();
   final sells = trades.where((t) => ids.contains(t.holdingId) && t.type == 'sell');
+  // 今日交易（time >= 当日 0 点），用于后台精确今日盈亏（今日买入按买入价）。
+  final todayStart = DateTime(DateTime.now().year, DateTime.now().month,
+          DateTime.now().day)
+      .millisecondsSinceEpoch;
+  final tradesToday = trades
+      .where((t) => ids.contains(t.holdingId) && t.time >= todayStart)
+      .toList();
   return PositionSnapshot(
     kind: kind,
     grams: hs.fold(0.0, (s, h) => s + h.amount),
     totalCost: hs.fold(0.0, (s, h) => s + h.totalCost),
     boughtCost: hs.fold(0.0, (s, h) => s + h.boughtCost),
     soldNet: sells.fold(0.0, (sum, t) => sum + t.amount * t.price - t.fee),
+    todayTrades: tradesToday,
   );
 }
 

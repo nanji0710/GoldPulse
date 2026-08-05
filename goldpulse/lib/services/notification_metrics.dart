@@ -1,6 +1,7 @@
 // lib/services/notification_metrics.dart
 // 常驻通知栏：8 个展示指标的纯函数计算（口径与资产页一致）+ 持仓快照模型。
 // 纯 Dart、无 Flutter 依赖，供主 isolate 与后台 TaskHandler 复用。
+import '../models/trade_record.dart';
 import '../utils/formatters.dart' show fmtPrice;
 import 'calculator.dart';
 
@@ -11,17 +12,22 @@ class PositionSnapshot {
   final double totalCost;  // 剩余总成本
   final double boughtCost; // 累计投入
   final double soldNet;    // 卖出净得合计
+  /// 今日交易记录（time >= 当日 0 点），用于精确今日盈亏：今日买入按买入价、
+  /// 今日卖出按卖出价，隔夜持仓按昨收。
+  final List<TradeRecord> todayTrades;
   const PositionSnapshot({
     required this.kind,
     required this.grams,
     required this.totalCost,
     required this.boughtCost,
     required this.soldNet,
+    this.todayTrades = const [],
   });
 
   Map<String, Object?> toJson() => {
         'kind': kind, 'grams': grams, 'totalCost': totalCost,
         'boughtCost': boughtCost, 'soldNet': soldNet,
+        'todayTrades': todayTrades.map((t) => t.toMap()).toList(),
       };
   factory PositionSnapshot.fromJson(Map<String, dynamic> m) => PositionSnapshot(
         kind: m['kind'] as String,
@@ -29,6 +35,11 @@ class PositionSnapshot {
         totalCost: (m['totalCost'] as num).toDouble(),
         boughtCost: (m['boughtCost'] as num).toDouble(),
         soldNet: (m['soldNet'] as num).toDouble(),
+        todayTrades: (m['todayTrades'] as List?)
+                ?.map((e) =>
+                    TradeRecord.fromMap((e as Map).cast<String, Object?>()))
+                .toList() ??
+            const [],
       );
 }
 
@@ -58,7 +69,10 @@ Map<String, String> computeNotificationMetrics({
   final avgCost = pos.grams <= 0 ? null : pos.totalCost / pos.grams;
   final floatingProfit = Calculator.floatingProfit(price, pos.grams, pos.totalCost);
   final profitRate = pos.totalCost <= 0 ? null : floatingProfit / pos.totalCost * 100;
-  final todayProfit = Calculator.todayProfit(price, preClose, pos.grams);
+  // 精确今日盈亏：隔夜持仓按昨收、今日买入按买入价、今日卖出按卖出价。
+  final todayProfit = Calculator.todayProfitPrecise(
+      price: price, preClose: preClose, amountNow: pos.grams,
+      tradesToday: pos.todayTrades);
   final cumulativeProfit = pos.soldNet + price * pos.grams - pos.boughtCost;
   return {
     'price': fmtPrice(price),

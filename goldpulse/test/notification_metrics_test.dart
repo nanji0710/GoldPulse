@@ -1,5 +1,6 @@
 // test/notification_metrics_test.dart
 import 'package:flutter_test/flutter_test.dart';
+import 'package:goldpulse/models/trade_record.dart';
 import 'package:goldpulse/services/notification_metrics.dart';
 
 void main() {
@@ -40,6 +41,23 @@ void main() {
       for (final id in metricIds) {
         expect(metricLabels[id], isNotNull, reason: '指标 $id 缺中文名');
       }
+    });
+
+    test('今日买入：今日盈亏按买入价基准（不虚增昨收到买入价区间）', () {
+      // 用户场景：隔夜无持仓、今日买入 10g@883.1，昨收 880，现价 895.8。
+      final todayPos = PositionSnapshot(
+        kind: 'accumulation', grams: 10, totalCost: 8831,
+        boughtCost: 8831, soldNet: 0,
+        todayTrades: [
+          TradeRecord(id: 1, holdingId: 1, type: 'buy', amount: 10,
+              price: 883.1, fee: 0, time: 100),
+        ],
+      );
+      final m = computeNotificationMetrics(price: 895.8, preClose: 880, pos: todayPos);
+      // 持仓收益 = (895.8 − 883.1) × 10 = 127
+      expect(m['floatingProfit'], '+127.00');
+      // 今日盈亏 = (895.8 − 883.1) × 10 = 127，而不是 (895.8 − 880) × 10 = 158
+      expect(m['todayProfit'], '+127.00');
     });
   });
 }

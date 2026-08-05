@@ -31,8 +31,48 @@ class Calculator {
 
   /// 今日盈亏 = (现价 − 昨收) × 持仓克重。
   /// 昨收（preClose）由行情接口提供，作为当日基准价。
+  /// 注意：这是简化口径，**不区分今日新买入的克重**——刚买入的克重会按昨收基准
+  /// 虚增（买入前该克重不存在）。精确口径见 [todayProfitPrecise]。
   static double todayProfit(double price, double preClose, double amount) =>
       (price - preClose) * amount;
+
+  /// 今日盈亏（精确口径）：
+  /// - 隔夜持仓（昨日收盘时已有、且今日仍持有）按昨收基准：(现价 − 昨收) × 隔夜持有克重
+  /// - 今日买入的克重按买入价基准：(现价 − 买入价) × 买入克重
+  /// - 今日卖出的克重按卖出价基准：(卖出价 − 昨收) × 卖出克重（卖出时刻即锁定）
+  /// - 生息克重今日新增、无成本基准，今日盈亏计 0
+  /// 隔夜总克重 = 当前克重 − 今日买入 + 今日卖出 + 今日生息；
+  /// 其中今日已卖出的部分按卖出价而非现价，故隔夜持有克重 = 隔夜总克重 − 今日卖出。
+  /// [tradesToday] 为当日交易记录（time >= 当日 0 点）。
+  static double todayProfitPrecise({
+    required double price,
+    required double preClose,
+    required double amountNow,
+    required Iterable<TradeRecord> tradesToday,
+  }) {
+    var overnight = amountNow;
+    var buyProfit = 0.0;
+    var sellProfit = 0.0;
+    var soldToday = 0.0;
+    for (final t in tradesToday) {
+      switch (t.type) {
+        case 'buy':
+          overnight -= t.amount; // 今日买入克重不算隔夜
+          buyProfit += (price - t.price) * t.amount;
+          break;
+        case 'sell':
+          overnight += t.amount; // 当前克重不含已卖出部分，还原回隔夜
+          soldToday += t.amount;
+          sellProfit += (t.price - preClose) * t.amount;
+          break;
+        case 'interest':
+          overnight -= t.amount; // 生息克重今日才有，不算隔夜
+          break;
+      }
+    }
+    final overnightHeld = overnight - soldToday;
+    return (price - preClose) * overnightHeld + buyProfit + sellProfit;
+  }
 
   /// 历史卖出净收入 = Σ(卖出克重×卖出价 − 手续费)。
   static double sellNetProceeds(Iterable<TradeRecord> sellTrades) =>
