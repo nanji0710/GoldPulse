@@ -80,6 +80,8 @@ final suggestionsProvider = FutureProvider<List<TradeSuggestion>>((ref) async {
     final applied = applyCooling(
         current: current, last: last, now: now,
         priceMovePercent: priceMovePercent);
+    // 不变式：applyCooling 恒返回原引用 current（不构造副本），故 identical 判断可靠；
+    // 若将来 applyCooling 改为返回新对象，这里需同步改用 信号/分数 比较再决定写回冷却。
     if (identical(applied, current)) {
       await prefs.setString(key, jsonEncode({
         'trend': current.trend.name,

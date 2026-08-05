@@ -62,7 +62,7 @@ TradeSignal signalOf({
 
 String _pct(double v) => v.abs().toStringAsFixed(1);
 
-/// 生成 2 条理由文案（第一条讲趋势/行情，第二条讲持仓收益）。
+/// 生成理由文案（insufficient 1 条，其余 2 条；第一条讲趋势/行情，第二条讲持仓收益）。
 List<String> reasonsFor(TradeSuggestion s) {
   final pct = _pct(s.profitRate);
   final sign = s.profitRate >= 0 ? '+' : '-';

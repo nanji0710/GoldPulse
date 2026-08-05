@@ -42,8 +42,9 @@ void main() {
     expect(find.text('置信 30'), findsOneWidget);
     expect(find.text('近期趋势走低'), findsOneWidget);
     expect(find.text('亏损较大，建议重新评估仓位'), findsOneWidget);
-    // 免责小字
+    // 免责小字 + 底部时间戳（HH:mm 来自 main.updatedAt）
     expect(find.textContaining('非投资建议'), findsOneWidget);
+    expect(find.textContaining('更新于 10:30'), findsOneWidget);
   });
 
   testWidgets('多品种：其余品种渲染一行摘要（含动作词）', (tester) async {

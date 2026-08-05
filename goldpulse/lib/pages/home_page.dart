@@ -53,9 +53,11 @@ class HomePage extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             // 智能建议卡：主建议 + 其余品种摘要（来自 suggestionsProvider）
+            // 仅从未有数据（!hasValue）时显示"正在分析行情…"加载态；
+            // suggestionsProvider 每 ~2 分钟随行情重算会短暂 AsyncLoading，但 hasValue 仍为 true，避免卡片闪转圈。
             TradeSuggestionCard(
               suggestions: ref.watch(suggestionsProvider).value ?? const [],
-              loading: ref.watch(suggestionsProvider).isLoading,
+              loading: !ref.watch(suggestionsProvider).hasValue,
             ),
             const SizedBox(height: 14),
             // 三行情卡：Au9999 + 浙商积存金 + 工商积存金 同时展示

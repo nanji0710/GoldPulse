@@ -35,6 +35,11 @@ Color signalColor(TradeSignal s) => switch (s) {
       TradeTrend.insufficient => ('·', AppTheme.textSecondary),
     };
 
+/// HH:mm 时间格式化（与项目 market_page._fmtHHmm 风格一致）。
+String _fmtHHmm(DateTime t) => '${_two(t.hour)}:${_two(t.minute)}';
+
+String _two(int v) => v.toString().padLeft(2, '0');
+
 class TradeSuggestionCard extends StatelessWidget {
   final List<TradeSuggestion> suggestions;
   final bool loading;
@@ -174,10 +179,10 @@ class TradeSuggestionCard extends StatelessWidget {
           ),
       ],
       const SizedBox(height: 8),
-      // 底部：免责 + 冷却
-      const Row(children: [
+      // 底部：时间戳 + 免责 + 冷却
+      Row(children: [
         Expanded(
-          child: Text('更新于 · 仅供参考，非投资建议',
+          child: Text('更新于 ${_fmtHHmm(main.updatedAt)} · 仅供参考，非投资建议',
               style: TextStyle(fontSize: 10, color: AppTheme.offline)),
         ),
         Text('24h 内不重复提醒',
