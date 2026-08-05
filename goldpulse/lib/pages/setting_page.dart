@@ -1,8 +1,9 @@
 // lib/pages/setting_page.dart
-// 设置页：刷新频率、数据备份（导出/导入/清空）、关于。
+// 设置页：刷新频率、常驻通知栏、数据备份（导出/导入/清空）、关于。
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,8 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../database/app_database.dart';
 import '../services/backup_service.dart';
+import '../services/notification_metrics.dart';
+import '../services/persistent_notification_service.dart';
 import '../state/alert_provider.dart';
 import '../state/holding_provider.dart';
+import '../state/persistent_notification_provider.dart';
 import '../state/price_provider.dart';
 
 /// 刷新频率选项：秒数 → 文案。默认 2 分钟。
@@ -32,6 +36,7 @@ class SettingPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final interval = ref.watch(refreshIntervalProvider).valueOrNull;
+    final cfg = ref.watch(persistentNotificationConfigProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -45,6 +50,85 @@ class SettingPage extends ConsumerWidget {
               subtitle:
                   Text(interval != null ? '当前 ${_label(interval)}' : '默认 2 分钟'),
               onTap: () => _pickRefreshRate(context, ref),
+            ),
+          ]),
+          const _SectionTitle('常驻通知栏'),
+          _groupCard([
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined,
+                  color: AppTheme.gold),
+              title: const Text('常驻通知栏'),
+              subtitle: const Text('前台服务常驻通知，按设定频率实时显示行情与持仓收益'),
+              value: cfg.enabled,
+              onChanged: (v) =>
+                  v ? _startNotificationBar(ref) : _stopNotificationBar(ref),
+            ),
+            const Divider(height: 1, color: AppTheme.divider),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: DropdownButtonFormField<String>(
+                // key 随配置变化重建，保证 initialValue 与 provider 状态一致（含 loadFromPrefs 恢复后）。
+                key: ValueKey('bar-kind-${cfg.kind}'),
+                initialValue: cfg.kind,
+                decoration: const InputDecoration(labelText: '品种', isDense: true),
+                items: notificationKindLabels.entries
+                    .map((e) =>
+                        DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .toList(),
+                onChanged: (k) async {
+                  if (k == null || k == cfg.kind) return;
+                  await ref
+                      .read(persistentNotificationConfigProvider.notifier)
+                      .setKind(k);
+                  await _restartNotificationBar(ref);
+                },
+              ),
+            ),
+            const Divider(height: 1, color: AppTheme.divider),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: DropdownButtonFormField<int>(
+                key: ValueKey('bar-interval-${cfg.intervalSeconds}'),
+                initialValue: cfg.intervalSeconds,
+                decoration: const InputDecoration(labelText: '刷新频率', isDense: true),
+                items: [
+                  for (final s in notificationIntervalOptions)
+                    DropdownMenuItem(value: s, child: Text('每 $s 秒')),
+                ],
+                onChanged: (s) async {
+                  if (s == null || s == cfg.intervalSeconds) return;
+                  await ref
+                      .read(persistentNotificationConfigProvider.notifier)
+                      .setIntervalSeconds(s);
+                  await _restartNotificationBar(ref);
+                },
+              ),
+            ),
+            const Divider(height: 1, color: AppTheme.divider),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('展示指标（最多 4 个）',
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.textSecondary)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final id in metricIds)
+                        ChoiceChip(
+                          label: Text(metricLabels[id] ?? id),
+                          selected: cfg.metrics.contains(id),
+                          onSelected: (_) =>
+                              _toggleBarMetric(context, ref, id),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ]),
           const _SectionTitle('数据管理'),
@@ -131,6 +215,55 @@ Future<void> _pickRefreshRate(BuildContext context, WidgetRef ref) async {
   if (chosen == null) return;
   await prefs.setInt(refreshIntervalPrefKey, chosen);
   ref.invalidate(refreshIntervalProvider); // priceProvider 监听它，自动以新间隔重启
+}
+
+/// 开启常驻通知栏：写 prefs → 启动服务 → 重发配置+快照。
+/// 启动与同步必须两步都做：后台 isolate 的 onReceiveData 可能未就绪，首包丢失
+/// 会导致服务以错误品种/默认指标运行（Task 3 评审遗留的启动竞态）。
+Future<void> _startNotificationBar(WidgetRef ref) async {
+  final cfg = ref.read(persistentNotificationConfigProvider);
+  await ref.read(persistentNotificationConfigProvider.notifier).setEnabled(true);
+  await startPersistentNotification(
+      kind: cfg.kind, intervalSeconds: cfg.intervalSeconds);
+  await syncNotificationPosition(ref);
+}
+
+/// 关闭常驻通知栏：写 prefs → 停止前台服务。
+/// 进程重启后前台服务可能已不在运行，stopService 会抛异常，先检查运行状态。
+Future<void> _stopNotificationBar(WidgetRef ref) async {
+  await ref.read(persistentNotificationConfigProvider.notifier).setEnabled(false);
+  if (await FlutterForegroundTask.isRunningService) {
+    await stopPersistentNotification();
+  }
+}
+
+/// 配置变更（品种/频率/指标）后：若已开启则重启服务并重发配置+快照。
+/// 重启用 stop+start 而非 restartService：restartService 按上次启动参数重启，
+/// 无法应用新 init 的频率；每次重启后同样要重新同步（后台 TaskHandler 重建）。
+Future<void> _restartNotificationBar(WidgetRef ref) async {
+  final cfg = ref.read(persistentNotificationConfigProvider);
+  if (!cfg.enabled) return;
+  if (await FlutterForegroundTask.isRunningService) {
+    await stopPersistentNotification();
+  }
+  await startPersistentNotification(
+      kind: cfg.kind, intervalSeconds: cfg.intervalSeconds);
+  await syncNotificationPosition(ref);
+}
+
+/// 切换自选指标：被 8 选 4 限制拒绝时 toast 提示。
+Future<void> _toggleBarMetric(
+    BuildContext context, WidgetRef ref, String id) async {
+  final ok = await ref
+      .read(persistentNotificationConfigProvider.notifier)
+      .toggleMetric(id);
+  if (!ok) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('最多展示 4 个指标')));
+    return;
+  }
+  await _restartNotificationBar(ref);
 }
 
 /// 收集三张业务表 → 序列化 → 写入应用文档目录（timestamped 文件名）。
