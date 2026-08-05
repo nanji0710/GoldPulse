@@ -182,6 +182,66 @@ class PriceApi {
   Future<GoldPrice?> fetchIcbcPriceWithFallback() =>
       _fetchWithFallback('ICBC-JCJ', tag: '工商积存金');
 
+  /// 民生积存金主源：ms.jr.jd.com latestPrice（独立于 getGoldPrice，无当日日线字段）。
+  static const minShengUrl =
+      'https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice';
+
+  Future<GoldPrice?> fetchMinShengPrice() async {
+    try {
+      final res = await dio.get(minShengUrl,
+          options: Options(receiveTimeout: const Duration(seconds: 8),
+              sendTimeout: const Duration(seconds: 8)));
+      var data = res.data;
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } on FormatException {
+          throw ApiException('响应非合法 JSON');
+        }
+      }
+      if (data is! Map<String, dynamic>) throw ApiException('响应结构非法');
+      return parseJdGoldPrice(data, fallbackCode: 'MSB-JCJ', source: '京东民生');
+    } on DioException catch (e) {
+      throw ApiException('网络请求失败: ${e.message}');
+    }
+  }
+
+  /// 民生积存金降级链：主源 latestPrice → 东方财富 Au9999 参考 → 新浪。
+  Future<GoldPrice?> fetchMinShengPriceWithFallback() async {
+    try {
+      final gp = await fetchMinShengPrice();
+      if (gp != null) {
+        _log('民生 主源京东(latestPrice)成功: ${gp.price} 元/g @${gp.time}');
+        return gp;
+      }
+      _log('民生 京东返回空数据，继续降级');
+    } on ApiException catch (e) {
+      _log('民生 京东失败: ${e.message}');
+    }
+    try {
+      final gp = await _eastmoneyPrice(code: 'MSB-JCJ', source: 'Au9999 参考');
+      if (gp != null) {
+        _log('民生 备用东方财富(Au9999 参考)成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('民生 东方财富返回空数据，继续降级');
+    } on DioException catch (e) {
+      _log('民生 东方财富失败: ${e.message}');
+    }
+    try {
+      final gp = await _sinaPrice(code: 'MSB-JCJ', source: '新浪');
+      if (gp != null) {
+        _log('民生 兜底新浪成功: ${gp.price} 元/g');
+        return gp;
+      }
+      _log('民生 新浪返回空数据');
+    } on DioException catch (e) {
+      _log('民生 新浪失败: ${e.message}');
+    }
+    _log('民生 全部行情源失败');
+    return null;
+  }
+
   /// 东方财富 Au9999（上金所）解析。实测（2026-08-04）：
   ///   data.f43=最新价（×100 缩放，88380→883.80），f60=昨收（×100），
   ///   f57=代码，f58=名称，f170=涨跌幅（×100）。

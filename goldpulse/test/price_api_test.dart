@@ -328,4 +328,70 @@ void main() {
     expect(adapter.lastUri!.path, contains('getGoldPrice'));
     expect(adapter.lastUri!.queryParameters['goldCode'], 'ICBC-JCJ');
   });
+
+  group('民生积存金', () {
+    final minShengSample = {
+      'resultData': {
+        'datas': {
+          'upAndDownRate': '+1.23%',
+          'productSku': '21001001000001',
+          'price': '898.25',
+          'yesterdayPrice': '887.30',
+          'upAndDownAmt': '+10.95',
+          'time': '1785902867000',
+        },
+        'status': 'SUCCESS',
+      },
+      'success': true,
+      'resultCode': 0,
+    };
+
+    test('解析民生响应：price/yesterdayPrice/涨跌幅', () {
+      final gp = PriceApi.parseJdGoldPrice(minShengSample, fallbackCode: 'MSB-JCJ');
+      expect(gp, isNotNull);
+      expect(gp!.price, closeTo(898.25, 0.001));
+      expect(gp.preClose, closeTo(887.30, 0.001));
+      expect(gp.percent, closeTo(898.25 / 887.30 * 100 - 100, 0.001));
+      expect(gp.code, 'MSB-JCJ');
+    });
+
+    test('fetchMinShengPrice 请求 latestPrice 且主源成功返回', () async {
+      final adapter = _RecordingAdapter(ResponseBody.fromString(
+          jsonEncode(minShengSample), 200,
+          headers: {'content-type': ['application/json']}));
+      final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+      dio.httpClientAdapter = adapter;
+      final api = PriceApi(dio: dio);
+      final gp = await api.fetchMinShengPrice();
+      expect(gp, isNotNull);
+      expect(gp!.price, closeTo(898.25, 0.001));
+      // 命中民生 latestPrice 接口。
+      expect(adapter.lastUri!.host, 'ms.jr.jd.com');
+      expect(adapter.lastUri!.path, contains('latestPrice'));
+    });
+
+    test('fetchMinShengPriceWithFallback：主源失败 → 降级到东方财富 Au9999 参考', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+      dio.httpClientAdapter = _SequentialAdapter([
+        ResponseBody.fromString('<html>Bad Gateway</html>', 502,
+            headers: {'content-type': ['text/html']}),
+        ResponseBody.fromString(
+            jsonEncode({'data': {'f43': 88380, 'f60': 88304}}), 200,
+            headers: {'content-type': ['application/json']}),
+      ]);
+      final api = PriceApi(dio: dio);
+      final gp = await api.fetchMinShengPriceWithFallback();
+      expect(gp, isNotNull);
+      expect(gp!.price, closeTo(883.80, 0.001));
+      expect(gp.code, 'MSB-JCJ');
+      expect(gp.source, 'Au9999 参考');
+    });
+
+    test('fetchMinShengPriceWithFallback：全部源都失败 → 返回 null', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://invalid.example'));
+      dio.httpClientAdapter = _FailingAdapter();
+      final api = PriceApi(dio: dio);
+      expect(await api.fetchMinShengPriceWithFallback(), isNull);
+    });
+  });
 }
