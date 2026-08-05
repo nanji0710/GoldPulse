@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>常驻通知栏功能 Mockup — 金脉 GoldPulse</title>
+<style>
+  :root {
+    --bg:#0F172A; --card:#1E293B; --card-hi:#28384E;
+    --gold:#D9A441; --gold-soft:#8A6A1F;
+    --up:#E5484D; --down:#2E9E6B; --text:#F1F5F9; --text2:#94A3B8; --divider:#334155;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0d1117; color:#e6edf3; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:36px; }
+  .page-title { font-size:20px; font-weight:600; text-align:center; margin-bottom:4px; }
+  .page-sub { font-size:13px; color:#8b949e; text-align:center; max-width:560px; line-height:1.6; }
+  .section-title { font-size:15px; font-weight:600; color:var(--gold); margin:6px 0 12px; text-align:center; }
+
+  .row { display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+
+  /* ===== 手机通知中心 ===== */
+  .phone { width:330px; background:#111827; border-radius:34px; border:1px solid #30363d; padding:22px 14px 28px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  .statusbar { display:flex; justify-content:space-between; font-size:11px; color:#8b949e; padding:0 6px 12px; }
+  .notif {
+    background:#1e293b; border-radius:16px; padding:12px 14px; margin-bottom:10px;
+    box-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+  .notif.ongoing { border:1px solid rgba(217,164,65,.35); }
+  .n-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .n-icon { width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,#2B3B55,#28384E); display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .n-app { font-size:11px; color:#8b949e; }
+  .n-ongoing-tag { margin-left:auto; font-size:9px; color:var(--gold); border:1px solid rgba(217,164,65,.4); border-radius:999px; padding:1px 7px; }
+  .n-title { display:flex; align-items:baseline; gap:6px; }
+  .n-name { font-size:14px; font-weight:700; color:#f1f5f9; }
+  .n-price { font-size:20px; font-weight:800; color:#f1f5f9; font-variant-numeric:tabular-nums; margin-left:auto; }
+  .n-chg { font-size:11px; font-weight:600; color:#E5484D; }
+  .n-metrics { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:9px; padding-top:8px; border-top:1px dashed #334155; }
+  .n-metric { display:flex; justify-content:space-between; font-size:11.5px; }
+  .n-metric .k { color:#8b949e; }
+  .n-metric .v { font-weight:600; color:#f1f5f9; font-variant-numeric:tabular-nums; }
+  .n-metric .v.green { color:#2E9E6B; }
+  .n-metric .v.red { color:#E5484D; }
+  .n-time { font-size:10px; color:#64748b; margin-top:8px; text-align:right; }
+
+  /* ===== 设置页 ===== */
+  .setphone { width:330px; background:#0F172A; border-radius:34px; border:1px solid #30363d; padding:22px 14px 28px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  .appbar { font-size:16px; font-weight:600; color:#f1f5f9; padding:0 6px 14px; }
+  .set-card { background:#1E293B; border:1px solid #334155; border-radius:16px; margin-bottom:12px; overflow:hidden; }
+  .set-row { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(51,65,85,.6); }
+  .set-row:last-child { border-bottom:none; }
+  .set-row .label { font-size:13.5px; color:#f1f5f9; }
+  .set-row .desc { font-size:11px; color:#8b949e; margin-top:3px; }
+  .switch { width:46px; height:26px; border-radius:999px; background:#D9A441; position:relative; flex-shrink:0; }
+  .switch .knob { position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:#fff; }
+  .chip { font-size:12px; color:#94A3B8; border:1px solid #334155; border-radius:999px; padding:4px 12px; }
+  .chip.on { color:#D9A441; border-color:rgba(217,164,65,.5); }
+  .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; padding:6px 0; }
+  .metric-opt { display:flex; align-items:center; gap:8px; padding:9px 16px; font-size:12.5px; color:#f1f5f9; }
+  .metric-opt .box { width:16px; height:16px; border-radius:5px; border:1.5px solid #334155; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; }
+  .metric-opt.sel .box { background:#D9A441; border-color:#D9A441; color:#0F172A; }
+  .metric-opt .m { color:#8b949e; }
+  .count { font-size:11px; color:#8b949e; padding:0 16px 8px; }
+  .count b { color:#D9A441; }
+
+  .legend { max-width:560px; background:#161b22; border:1px solid #30363d; border-radius:14px; padding:16px 20px; font-size:12.5px; line-height:1.9; color:#8b949e; }
+  .legend b { color:#e6edf3; }
+  .legend .gold { color:#D9A441; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="page-title">常驻通知栏 · 方案与 UI</div>
+    <div class="page-sub">手机通知中心持续显示指定积存金的成本变化与收益。用户可手动开关、选品种、选最多 4 个展示指标、设刷新频率。技术：Android 前台服务（foreground service）+ 持续通知。</div>
+  </div>
+
+  <div class="row">
+    <!-- 通知中心效果 -->
+    <div>
+      <div class="section-title">① 通知中心（Android）</div>
+      <div class="phone">
+        <div class="statusbar"><span>13:42</span><span>● 5G</span></div>
+        <div class="notif">
+          <div class="n-head">
+            <div class="n-icon">🪙</div>
+            <div>
+              <div class="n-app">金脉 GoldPulse</div>
+              <div style="font-size:10px;color:#64748b">正在运行 · 常驻提醒</div>
+            </div>
+            <span class="n-ongoing-tag">常驻</span>
+          </div>
+          <div class="n-title">
+            <span class="n-name">浙商积存金</span>
+            <span class="n-chg">▲ +3.42</span>
+            <span class="n-price">900.10</span>
+          </div>
+          <div class="n-metrics">
+            <div class="n-metric"><span class="k">均价(成本)</span><span class="v">896.40</span></div>
+            <div class="n-metric"><span class="k">持仓收益</span><span class="v green">+185.0</span></div>
+            <div class="n-metric"><span class="k">收益率</span><span class="v green">+0.41%</span></div>
+            <div class="n-metric"><span class="k">今日盈亏</span><span class="v red">-32.5</span></div>
+          </div>
+          <div class="n-time">更新于 13:42:05 · 每 10 秒刷新</div>
+        </div>
+        <div class="notif">
+          <div class="n-head"><div class="n-icon">✉</div><div><div class="n-app">消息中心</div><div style="font-size:10px;color:#64748b">示例占位</div></div></div>
+          <div style="font-size:12px;color:#94A3B8">（其他通知，示意位置）</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置页 -->
+    <div>
+      <div class="section-title">② 设置页（App 内）</div>
+      <div class="setphone">
+        <div class="appbar">设置</div>
+
+        <div class="set-card">
+          <div class="set-row">
+            <div>
+              <div class="label">常驻通知栏</div>
+              <div class="desc">通知中心持续显示品种行情与收益</div>
+            </div>
+            <div class="switch"><div class="knob"></div></div>
+          </div>
+          <div class="set-row">
+            <div>
+              <div class="label">显示品种</div>
+              <div class="desc">选择要常驻展示的积存金</div>
+            </div>
+            <span class="chip on">浙商积存金</span>
+          </div>
+          <div class="set-row">
+            <div>
+              <div class="label">刷新频率</div>
+              <div class="desc">通知内容更新间隔</div>
+            </div>
+            <span class="chip on">每 10 秒</span>
+          </div>
+        </div>
+
+        <div class="set-card">
+          <div class="set-row" style="border-bottom:1px solid rgba(51,65,85,.6)">
+            <div>
+              <div class="label">展示指标（最多 4 个）</div>
+              <div class="desc">点选要在通知栏显示的指标</div>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-opt sel"><span class="box">✓</span>现价</div>
+            <div class="metric-opt sel"><span class="box">✓</span>均价(成本)</div>
+            <div class="metric-opt"><span class="box"></span>涨跌额</div>
+            <div class="metric-opt sel"><span class="box">✓</span>持仓收益</div>
+            <div class="metric-opt"><span class="box"></span>涨跌幅</div>
+            <div class="metric-opt sel"><span class="box">✓</span>收益率</div>
+            <div class="metric-opt"><span class="box"></span>今日盈亏</div>
+            <div class="metric-opt"><span class="box"></span>累计收益</div>
+          </div>
+          <div class="count">已选 <b>4</b> / 4 个</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>方案要点</b><br>
+    <b>· 技术</b>：Android <span class="gold">前台服务（foreground service）</span> + <span class="gold">持续通知（onGoing）</span>。前台服务常驻运行、系统不杀，定时从本地库取最新行情 + 按所选品种持仓计算收益 → 更新通知内容。关掉开关即停服。<br>
+    <b>· 品种</b>：单选一个积存金（Au9999 / 浙商 / 工商 / 民生）。<br>
+    <b>· 指标池（8 选 4）</b>：现价 · 涨跌额 · 涨跌幅 · 均价(成本) · 持仓收益 · 收益率 · 今日盈亏 · 累计收益。<br>
+    <b>· 频率</b>：5 / 10 / 30 / 60 秒（独立于行情轮询频率，通知更新不用太频繁省电）。<br>
+    <b>· 开关入口</b>：设置页新增「常驻通知栏」区块（总开关 + 品种 + 频率 + 指标）。<br>
+    <b>· 数据来源</b>：复用现有行情轮询的 DB + 持仓（holdings/typeSummaries）——收益口径与资产页完全一致。
+  </div>
+</body>
+</html>
