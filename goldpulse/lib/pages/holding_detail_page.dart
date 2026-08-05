@@ -205,9 +205,14 @@ class _HoldingDetailPageState extends ConsumerState<HoldingDetailPage> {
             holding.amount,
             holding.totalCost,
           );
+    // 精确今日盈亏：今日买入按买入价、卖出按卖出价，隔夜按昨收。
     final double? today = price == null
         ? null
-        : Calculator.todayProfit(price.price, price.preClose, holding.amount);
+        : Calculator.todayProfitPrecise(
+            price: price.price,
+            preClose: price.preClose,
+            amountNow: holding.amount,
+            tradesToday: Calculator.tradesTodayOf(trades));
     final double? cumulative = price == null
         ? null
         : Calculator.cumulativeProfit(

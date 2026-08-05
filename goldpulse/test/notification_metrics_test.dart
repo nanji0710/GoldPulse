@@ -1,4 +1,6 @@
 // test/notification_metrics_test.dart
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:goldpulse/models/trade_record.dart';
 import 'package:goldpulse/services/notification_metrics.dart';
@@ -58,6 +60,23 @@ void main() {
       expect(m['floatingProfit'], '+127.00');
       // 今日盈亏 = (895.8 − 883.1) × 10 = 127，而不是 (895.8 − 880) × 10 = 158
       expect(m['todayProfit'], '+127.00');
+    });
+
+    test('PositionSnapshot JSON round-trip 保留 todayTrades（后台 isolate 传参链路）', () {
+      final pos = PositionSnapshot(
+        kind: 'accumulation', grams: 10, totalCost: 8831,
+        boughtCost: 8831, soldNet: 0,
+        todayTrades: [
+          TradeRecord(id: 1, holdingId: 1, type: 'buy', amount: 10,
+              price: 883.1, fee: 0, time: 100),
+        ],
+      );
+      // 模拟 sendDataToTask 的 JSON 序列化：encode → decode → fromJson。
+      final json = jsonDecode(jsonEncode(pos.toJson())) as Map<String, dynamic>;
+      final back = PositionSnapshot.fromJson(json);
+      expect(back.todayTrades, hasLength(1));
+      expect(back.todayTrades.single.type, 'buy');
+      expect(back.todayTrades.single.price, closeTo(883.1, 1e-9));
     });
   });
 }

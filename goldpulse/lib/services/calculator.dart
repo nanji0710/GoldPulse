@@ -74,6 +74,14 @@ class Calculator {
     return (price - preClose) * overnightHeld + buyProfit + sellProfit;
   }
 
+  /// 筛选当日（time >= 当日 0 点）交易记录，供精确今日盈亏口径使用。
+  static List<TradeRecord> tradesTodayOf(Iterable<TradeRecord> trades) {
+    final now = DateTime.now();
+    final todayStart =
+        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    return trades.where((t) => t.time >= todayStart).toList();
+  }
+
   /// 历史卖出净收入 = Σ(卖出克重×卖出价 − 手续费)。
   static double sellNetProceeds(Iterable<TradeRecord> sellTrades) =>
       sellTrades.fold(0.0, (sum, t) => sum + t.amount * t.price - t.fee);

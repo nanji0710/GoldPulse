@@ -42,6 +42,7 @@ class AssetSummary {
     double? boughtCost,
     Holding? holding,
     Iterable<TradeRecord> sellTrades = const [],
+    Iterable<TradeRecord> tradesToday = const [],
   }) {
     // 累计投入：未显式给出时回退为总成本（无卖出场景两者相等，保持既有口径）。
     final bc = boughtCost ?? totalCost;
@@ -53,7 +54,10 @@ class AssetSummary {
       preClose: preClose,
       currentValue: value,
       floatingProfit: profit,
-      todayProfit: Calculator.todayProfit(currentPrice, preClose, amount),
+      // 精确今日盈亏：今日买入按买入价、卖出按卖出价，隔夜按昨收。
+      todayProfit: Calculator.todayProfitPrecise(
+          price: currentPrice, preClose: preClose, amountNow: amount,
+          tradesToday: tradesToday),
       cumulativeProfit: Calculator.cumulativeProfit(
           currentPrice: currentPrice, amount: amount, boughtCost: bc, sellTrades: sellTrades),
       profitRate: Calculator.profitRate(profit, totalCost),

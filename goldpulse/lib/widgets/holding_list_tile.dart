@@ -34,9 +34,10 @@ class HoldingListTile extends ConsumerWidget {
               : priceProvider,
         )
         .valueOrNull;
-    final sells =
+    final trades =
         ref.watch(holdingTradesProvider(holding.id)).valueOrNull ??
         const <TradeRecord>[];
+    final sells = trades.where((t) => t.type == 'sell').toList();
     final avgCost = Calculator.avgCost(holding.totalCost, holding.amount);
 
     // 三口径收益：行情缺失（null）时全部显示 '--'，不配色。
@@ -49,10 +50,12 @@ class HoldingListTile extends ConsumerWidget {
         holding.amount,
         holding.totalCost,
       );
-      today = Calculator.todayProfit(
-        price.price,
-        price.preClose,
-        holding.amount,
+      // 精确今日盈亏：今日买入按买入价、卖出按卖出价，隔夜按昨收。
+      today = Calculator.todayProfitPrecise(
+        price: price.price,
+        preClose: price.preClose,
+        amountNow: holding.amount,
+        tradesToday: Calculator.tradesTodayOf(trades),
       );
       cumulative = Calculator.cumulativeProfit(
         currentPrice: price.price,
