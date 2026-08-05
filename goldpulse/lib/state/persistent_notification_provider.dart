@@ -84,9 +84,12 @@ PersistentNotificationConfig _configFromPrefs(SharedPreferences prefs) {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is List) {
-        // 只保留已知指标 id；空列表回退默认。
-        final known =
-            decoded.whereType<String>().where(metricIds.contains).toList();
+        // 只保留已知指标 id；空列表回退默认。take(4) 防御纵深：脏数据超 4 个时截断。
+        final known = decoded
+            .whereType<String>()
+            .where(metricIds.contains)
+            .take(4)
+            .toList();
         if (known.isNotEmpty) metrics = known;
       }
     } catch (_) {

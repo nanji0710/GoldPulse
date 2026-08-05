@@ -80,6 +80,12 @@ void persistentNotificationCallback() {
 
 class _PersistentTaskHandler extends TaskHandler {
   final _TaskPayload _payload = _TaskPayload();
+  // 后台周期拉行情共用 Dio（复用连接，避免每周期新建）。
+  final _dio = Dio(BaseOptions(
+      headers: {'User-Agent': 'goldpulse/1.0'},
+      receiveTimeout: const Duration(seconds: 8)));
+  // 防重入：降级链最长 ~24s，重叠周期刷新直接跳过，避免并发叠加。
+  bool _refreshing = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -104,12 +110,19 @@ class _PersistentTaskHandler extends TaskHandler {
   }
 
   Future<void> _refresh() async {
+    if (_refreshing) return; // 防重入：上一轮刷新未结束，直接跳过本次。
+    _refreshing = true;
     try {
       final snap = _payload.snapshot;
-      if (snap == null) return; // 持仓快照未就绪，不更新
-      final api = PriceApi(dio: Dio(BaseOptions(
-          headers: {'User-Agent': 'goldpulse/1.0'},
-          receiveTimeout: const Duration(seconds: 8))));
+      if (snap == null) {
+        // 无持仓：明确展示"无持仓"，避免通知永久停留在 startService 的"正在启动…"。
+        await FlutterForegroundTask.updateService(
+          notificationTitle: '金脉 · ${_kindLabel(_payload.kind)}',
+          notificationText: '无持仓',
+        );
+        return;
+      }
+      final api = PriceApi(dio: _dio);
       final fresh = _payload.kind == 'minsheng'
           ? await api.fetchMinShengPriceWithFallback()
           : await api.fetchGoldPriceWithFallback(_kindCode(_payload.kind));
@@ -126,6 +139,8 @@ class _PersistentTaskHandler extends TaskHandler {
       );
     } catch (_) {
       // 后台刷新失败静默，保留上一条通知。
+    } finally {
+      _refreshing = false;
     }
   }
 
